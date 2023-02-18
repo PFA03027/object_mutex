@@ -47,6 +47,41 @@ TEST( ObjectMutex, Locked )
 	return;
 }
 
+TEST( ObjectMutex, Locked_move1 )
+{
+	obj_mutex<test_class1> tt11( 11, 12 );
+
+	auto locked_data1 = tt11.lock_get();
+	auto locked_data2 = std::move( locked_data1 );
+
+	EXPECT_FALSE( locked_data1.valid() );
+	EXPECT_TRUE( locked_data2.valid() );
+	EXPECT_EQ( 11, locked_data2.ref().a );
+
+	return;
+}
+
+TEST( ObjectMutex, Locked_move2 )
+{
+	obj_mutex<test_class1> tt11( 11, 12 );
+	obj_mutex<test_class1> tt12( 21, 22 );
+
+	auto locked_data1 = tt11.lock_get();
+	auto locked_data2 = tt12.lock_get();
+
+	EXPECT_TRUE( locked_data1.valid() );
+	EXPECT_TRUE( locked_data2.valid() );
+	EXPECT_EQ( 21, locked_data2.ref().a );
+
+	locked_data2 = std::move( locked_data1 );
+
+	EXPECT_FALSE( locked_data1.valid() );
+	EXPECT_TRUE( locked_data2.valid() );
+	EXPECT_EQ( 11, locked_data2.ref().a );
+
+	return;
+}
+
 TEST( ObjectMutex, RecusiveMutexLocked )
 {
 	obj_mutex<test_class1, std::recursive_mutex> tt3;
@@ -111,6 +146,8 @@ TEST( ObjectMutex, CanCall_move_constructor )
 	tt1.lock_get().ref().a     = 20;
 	obj_mutex<test_class1> tt2 = std::move( tt1 );
 
+	EXPECT_FALSE( tt1.valid() );
+	EXPECT_TRUE( tt2.valid() );
 	EXPECT_EQ( 20, tt2.lock_get().ref().a );
 	return;
 }
@@ -146,6 +183,7 @@ TEST( ObjectMutex, CanCall_up_cast_move_constructor )
 		obj_mutex<test_classA> ttA = std::move( ttB );
 		EXPECT_EQ( 20, ttA.lock_get().ref().a );
 	} );
+	EXPECT_FALSE( ttB.valid() );
 	return;
 }
 
@@ -158,6 +196,8 @@ TEST( ObjectMutex, CanCall_down_cast_move_constructor )
 		obj_mutex<test_classB> ttB2 = std::move( ttA );
 		EXPECT_EQ( 20, ttB2.lock_get().ref().a );
 	} );
+	EXPECT_FALSE( ttA.valid() );
+	EXPECT_FALSE( ttB.valid() );
 	return;
 }
 

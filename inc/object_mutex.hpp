@@ -42,6 +42,11 @@ public:
 			return *this;
 		}
 
+		bool valid( void ) const
+		{
+			return ( sp_target_obj_ != nullptr );
+		}
+
 		~single_accessor()
 		{
 			// メンバ変数定義と逆順にデストラクタが起動されるため、
@@ -107,6 +112,11 @@ public:
 	  : sp_mtx_( std::make_shared<MTX_T>() )
 	  , sp_target_obj_( std::make_shared<T>( std::forward<HEADArg>( headarg ), std::forward<Args>( args )... ) )
 	{
+	}
+
+	bool valid( void ) const
+	{
+		return ( sp_target_obj_ != nullptr );
 	}
 
 	template <typename U = T>
