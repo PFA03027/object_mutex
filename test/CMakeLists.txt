@@ -32,3 +32,13 @@ endif()
 
 
 add_subdirectory(googletest)
+
+
+# file(GLOB SOURCES src/*.cpp )
+set(SOURCES test.cpp)
+
+add_executable(test_object_mutex ${SOURCES})
+target_include_directories(test_object_mutex PRIVATE ../inc)
+target_link_libraries(test_object_mutex gtest gtest_main pthread)
+
+add_test(NAME test_object_mutex COMMAND $<TARGET_FILE:test_object_mutex>)

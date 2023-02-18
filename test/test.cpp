@@ -4,6 +4,8 @@
 
 #include "object_mutex.hpp"
 
+#include "gtest/gtest.h"
+
 class test_class1 {
 public:
 	test_class1( void )
@@ -114,26 +116,43 @@ bool test3( void )
 	return true;
 }
 
-int main( void )
+obj_mutex<test_class1>::single_accessor tttt( void )
 {
-	int exit_code = EXIT_SUCCESS;
-	if ( !test1() ) {
-		exit_code = EXIT_FAILURE;
-	}
-	if ( !test2_default_constructor() ) {
-		exit_code = EXIT_FAILURE;
-	}
-	if ( !test2_constructor_check() ) {
-		exit_code = EXIT_FAILURE;
-	}
-	if ( !test3() ) {
-		exit_code = EXIT_FAILURE;
+	static obj_mutex<test_class1> tt1;
+	return tt1.lock_get();
+}
+
+bool test4( void )
+{
+	auto locked_data1 = tttt();
+	if ( locked_data1.ref().a != 10 ) {
+		std::cout << "ERROR: constructor check for member variable a" << std::endl;
+		return false;
 	}
 
-	if ( exit_code == EXIT_SUCCESS ) {
-		std::cout << "All tests are OK" << std::endl;
-	} else {
-		std::cout << "Any test/s are NG" << std::endl;
-	}
-	return exit_code;
+	return true;
 }
+
+// int main( void )
+// {
+// 	int exit_code = EXIT_SUCCESS;
+// 	if ( !test1() ) {
+// 		exit_code = EXIT_FAILURE;
+// 	}
+// 	if ( !test2_default_constructor() ) {
+// 		exit_code = EXIT_FAILURE;
+// 	}
+// 	if ( !test2_constructor_check() ) {
+// 		exit_code = EXIT_FAILURE;
+// 	}
+// 	if ( !test3() ) {
+// 		exit_code = EXIT_FAILURE;
+// 	}
+
+// 	if ( exit_code == EXIT_SUCCESS ) {
+// 		std::cout << "All tests are OK" << std::endl;
+// 	} else {
+// 		std::cout << "Any test/s are NG" << std::endl;
+// 	}
+// 	return exit_code;
+// }
