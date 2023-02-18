@@ -1,6 +1,9 @@
 
 all: a.out
 
+test: all
+	./a.out
+
 clean:
 	-rm -f a.out
 
