@@ -40,9 +40,9 @@ TEST( ObjectMutex, Locked )
 
 	{
 		auto locked_data = tt.lock_get();
-		EXPECT_TRUE( tt.TEST_is_locked() );
+		EXPECT_TRUE( tt.is_locked() );
 	}
-	EXPECT_FALSE( tt.TEST_is_locked() );
+	EXPECT_FALSE( tt.is_locked() );
 
 	return;
 }
@@ -93,12 +93,12 @@ TEST( ObjectMutex, RecusiveMutexLocked )
 		EXPECT_NE( 20, locked_data1.ref().a );
 		locked_data1.ref().a = 20;
 
-		ASSERT_FALSE( tt3.TEST_is_locked() );
+		ASSERT_FALSE( tt3.is_locked() );
 
 		auto locked_data2 = tt3.lock_get();
 		EXPECT_EQ( 20, locked_data2.ref().a );
 	}
-	ASSERT_FALSE( tt3.TEST_is_locked() );
+	ASSERT_FALSE( tt3.is_locked() );
 
 	return;
 }
@@ -272,6 +272,51 @@ TEST( ObjectMutex, obj_mutex_throw_by_fail_dynamic_cast )
 	obj_mutex<test_classA> ttA;
 
 	EXPECT_THROW( ttA.lock_get<test_classB>(), std::bad_cast );
+
+	return;
+}
+
+TEST( ObjectMutex, clone_has_no_relationship )
+{
+	obj_mutex<test_class1> tt1( 1, 2 );
+	obj_mutex<test_class1> tt2 = tt1.clone();
+
+	EXPECT_TRUE( tt1.valid() );
+	auto locked_acc1 = tt1.lock_get();
+	EXPECT_FALSE( tt2.is_locked() );
+
+	locked_acc1.ref().a = 10;
+
+	auto locked_acc2 = tt2.lock_get();
+	EXPECT_EQ( 1, locked_acc2.ref().a );
+
+	return;
+}
+
+TEST( ObjectMutex, shared_clone_has_the_relationship )
+{
+	obj_mutex<test_class1> tt1( 1, 2 );
+	obj_mutex<test_class1> tt2 = tt1.shared_clone();
+
+	EXPECT_TRUE( tt1.valid() );
+
+	{
+		auto locked_acc2 = tt2.lock_get();
+		EXPECT_EQ( 1, locked_acc2.ref().a );
+	}
+	{
+		auto locked_acc1 = tt1.lock_get();
+		EXPECT_TRUE( tt2.is_locked() );
+		EXPECT_EQ( 1, locked_acc1.ref().a );
+
+		locked_acc1.ref().a = 10;
+	}
+
+	{
+		auto locked_acc2 = tt2.lock_get();
+		EXPECT_TRUE( tt1.is_locked() );
+		EXPECT_EQ( 10, locked_acc2.ref().a );
+	}
 
 	return;
 }

@@ -120,7 +120,7 @@ public:
 	}
 
 	template <typename U = T>
-	typename obj_mutex<U, MTX_T>::single_accessor lock_get( void )
+	typename obj_mutex<U, MTX_T>::single_accessor lock_get( void ) const
 	{
 		if ( sp_target_obj_ == nullptr ) {
 			throw std::logic_error( "obj_mutex is empty. has been moved ?" );
@@ -132,7 +132,18 @@ public:
 		return typename obj_mutex<U, MTX_T>::single_accessor( sp_mtx_, sp_u );
 	}
 
-	bool TEST_is_locked( void )
+	template <typename std::enable_if<std::is_copy_constructible<T>::value>::type* = nullptr>
+	obj_mutex clone( void ) const
+	{
+		return obj_mutex( lock_get().ref() );
+	}
+
+	obj_mutex shared_clone( void ) const
+	{
+		return obj_mutex( sp_mtx_, sp_target_obj_ );
+	}
+
+	bool is_locked( void ) const
 	{
 		bool ans = sp_mtx_->try_lock();
 		if ( ans ) {
@@ -154,6 +165,12 @@ private:
 	// (2)相当の機能は、shared_clone()で提供する。
 	obj_mutex( const obj_mutex& orig )            = delete;
 	obj_mutex& operator=( const obj_mutex& orig ) = delete;
+
+	obj_mutex( std::shared_ptr<MTX_T> sp_mtx_arg, std::shared_ptr<T> sp_target_obj_arg )
+	  : sp_mtx_( std::move( sp_mtx_arg ) )
+	  , sp_target_obj_( std::move( sp_target_obj_arg ) )
+	{
+	}
 
 	std::shared_ptr<MTX_T> sp_mtx_;
 	std::shared_ptr<T>     sp_target_obj_;
