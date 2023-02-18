@@ -51,7 +51,16 @@
         "thread": "cpp",
         "typeinfo": "cpp",
         "iostream": "cpp",
-        "istream": "cpp"
+        "istream": "cpp",
+        "any": "cpp",
+        "map": "cpp",
+        "set": "cpp",
+        "iomanip": "cpp",
+        "optional": "cpp",
+        "sstream": "cpp",
+        "variant": "cpp",
+        "list": "cpp",
+        "unordered_set": "cpp"
     },
     "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools"
 }

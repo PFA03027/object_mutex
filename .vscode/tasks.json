@@ -1,0 +1,31 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "test-> make debug-all",
+            "type": "shell",
+            "command": "cd ${workspaceFolder}/test; make debug-all",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "make all",
+            "type": "shell",
+            "command": "cd ${workspaceFolder}/test; make all",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        },
+        {
+            "label": "make clean",
+            "type": "shell",
+            "command": "cd ${workspaceFolder}/test; make clean",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ]
+}
