@@ -34,17 +34,6 @@ TEST( ObjectMutex, CanCall_default_constructor )
 	return;
 }
 
-TEST( ObjectMutex, CanCall_translate_constructor )
-{
-	// constructor check
-	obj_mutex<test_class1> tt1( 1, 2 );
-
-	EXPECT_EQ( 1, tt1.lock_get().ref().a );
-	EXPECT_EQ( 2, tt1.lock_get().ref().b );
-
-	return;
-}
-
 TEST( ObjectMutex, Locked )
 {
 	obj_mutex<test_class1> tt;
@@ -79,7 +68,7 @@ TEST( ObjectMutex, RecusiveMutexLocked )
 	return;
 }
 
-obj_mutex<test_class1>::single_accessor tttt( void )
+typename obj_mutex<test_class1>::single_accessor tttt( void )
 {
 	static obj_mutex<test_class1> tt1;
 	return tt1.lock_get();
@@ -89,5 +78,160 @@ TEST( ObjectMutex, move_constructor_single_accessor )
 {
 	auto locked_data1 = tttt();
 	EXPECT_EQ( 10, locked_data1.ref().a );
+	return;
+}
+
+class test_class2 {
+public:
+	test_class2( int a_arg, int b_arg )
+	  : a( a_arg )
+	  , b( b_arg )
+	{
+	}
+
+private:
+	int a;
+	int b;
+};
+
+TEST( ObjectMutex, CouldNotCall_default_constructor )
+{
+	// could not call default constructor
+	static_assert( !std::is_default_constructible<test_class2>::value );
+	// static_assert( !std::is_default_constructible<obj_mutex<test_class2>>::value );
+
+	return;
+}
+
+TEST( ObjectMutex, CanCall_move_constructor )
+{
+	static_assert( std::is_move_constructible<obj_mutex<test_class1>>::value );
+
+	obj_mutex<test_class1> tt1;
+	tt1.lock_get().ref().a     = 20;
+	obj_mutex<test_class1> tt2 = std::move( tt1 );
+
+	EXPECT_EQ( 20, tt2.lock_get().ref().a );
+	return;
+}
+
+class test_classA {
+public:
+	test_classA( int a_arg = 0 )
+	  : a( a_arg )
+	{
+	}
+
+	virtual ~test_classA() = default;
+
+	int a;
+};
+
+class test_classB : public test_classA {
+public:
+	test_classB( int b_arg = 0 )
+	  : test_classA()
+	  , b( b_arg )
+	{
+	}
+
+	int b;
+};
+
+TEST( ObjectMutex, CanCall_up_cast_move_constructor )
+{
+	obj_mutex<test_classB> ttB;
+	ttB.lock_get().ref().a = 20;
+	ASSERT_NO_THROW( {
+		obj_mutex<test_classA> ttA = std::move( ttB );
+		EXPECT_EQ( 20, ttA.lock_get().ref().a );
+	} );
+	return;
+}
+
+TEST( ObjectMutex, CanCall_down_cast_move_constructor )
+{
+	obj_mutex<test_classB> ttB;
+	ttB.lock_get().ref().a     = 20;
+	obj_mutex<test_classA> ttA = std::move( ttB );
+	ASSERT_NO_THROW( {
+		obj_mutex<test_classB> ttB2 = std::move( ttA );
+		EXPECT_EQ( 20, ttB2.lock_get().ref().a );
+	} );
+	return;
+}
+
+TEST( ObjectMutex, CanCall_translate_constructor )
+{
+	// constructor check
+	obj_mutex<test_class1> tt1( 1, 2 );
+
+	EXPECT_EQ( 1, tt1.lock_get().ref().a );
+	EXPECT_EQ( 2, tt1.lock_get().ref().b );
+
+	return;
+}
+
+class test_class3 {
+public:
+	test_class3( int b_arg = 0 )
+	  : b( b_arg )
+	{
+	}
+
+	test_class3( const test_class3& orig )
+	  : b( orig.b )
+	{
+	}
+
+	int b;
+};
+
+TEST( ObjectMutex, CanCall_base_copy_constructor )
+{
+	// constructor check
+	test_class3            ttorig( 10 );
+	obj_mutex<test_class3> tt3( ttorig );
+
+	EXPECT_EQ( 10, tt3.lock_get().ref().b );
+
+	return;
+}
+
+TEST( ObjectMutex, CanCall_lock_get_upcast )
+{
+	obj_mutex<test_classB> ttB;
+	ttB.lock_get().ref().a = 20;
+	ASSERT_NO_THROW( {
+		EXPECT_EQ( 20, ttB.lock_get<test_classA>().ref().a );
+	} );
+	return;
+}
+
+TEST( ObjectMutex, CanCall_lock_get_downcast )
+{
+	obj_mutex<test_classA> ttA = obj_mutex<test_classB>( 21 );
+
+	ASSERT_NO_THROW( {
+		EXPECT_EQ( 21, ttA.lock_get<test_classB>().ref().b );
+	} );
+	return;
+}
+
+TEST( ObjectMutex, Invalid_obj_mutex_throw )
+{
+	obj_mutex<test_class1> tt1;
+	obj_mutex<test_class1> tt2 = std::move( tt1 );
+	EXPECT_THROW( tt1.lock_get(), std::logic_error );
+	EXPECT_EQ( 10, tt2.lock_get().ref().a );
+	return;
+}
+
+TEST( ObjectMutex, obj_mutex_throw_by_fail_dynamic_cast )
+{
+	obj_mutex<test_classA> ttA;
+
+	EXPECT_THROW( ttA.lock_get<test_classB>(), std::bad_cast );
+
 	return;
 }
