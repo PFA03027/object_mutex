@@ -320,3 +320,40 @@ TEST( ObjectMutex, shared_clone_has_the_relationship )
 
 	return;
 }
+
+class test_class4 {
+public:
+	test_class4( std::unique_ptr<int> up_b_arg )
+	  : a( 0 )
+	  , up_b( std::move( up_b_arg ) )
+	{
+	}
+
+	test_class4( int a_arg, std::unique_ptr<int> up_b_arg )
+	  : a( a_arg )
+	  , up_b( std::move( up_b_arg ) )
+	{
+	}
+
+	int                  a;
+	std::unique_ptr<int> up_b;
+};
+
+TEST( ObjectMutex, T_is_construct_by_move_only_argument1 )
+{
+	obj_mutex<test_class4> ttA( std::unique_ptr<int>( new int( 11 ) ) );
+
+	EXPECT_EQ( 11, *( ttA.lock_get().ref().up_b ) );
+
+	return;
+}
+
+TEST( ObjectMutex, T_is_construct_by_move_only_argument2 )
+{
+	obj_mutex<test_class4> ttA( 11, std::unique_ptr<int>( new int( 12 ) ) );
+
+	EXPECT_EQ( 11, ttA.lock_get().ref().a );
+	EXPECT_EQ( 12, *( ttA.lock_get().ref().up_b ) );
+
+	return;
+}

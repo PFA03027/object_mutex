@@ -73,7 +73,7 @@ public:
 	};
 
 	//////////////////////
-	template <typename std::enable_if<std::is_default_constructible<T>::value>::type* = nullptr>
+	template <typename U = T, typename std::enable_if<std::is_default_constructible<U>::value>::type* = nullptr>
 	obj_mutex( void )
 	  : sp_mtx_( std::make_shared<MTX_T>() )
 	  , sp_target_obj_( std::make_shared<T>() )
@@ -132,10 +132,10 @@ public:
 		return typename obj_mutex<U, MTX_T>::single_accessor( sp_mtx_, sp_u );
 	}
 
-	template <typename std::enable_if<std::is_copy_constructible<T>::value>::type* = nullptr>
-	obj_mutex clone( void ) const
+	template <typename U = T, typename std::enable_if<std::is_convertible<T, U>::value>::type* = nullptr>
+	obj_mutex<U, MTX_T> clone( void ) const
 	{
-		return obj_mutex( lock_get().ref() );
+		return obj_mutex<U, MTX_T>( lock_get().ref() );
 	}
 
 	obj_mutex shared_clone( void ) const
