@@ -1,6 +1,9 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <memory>
+#include <mutex>
+#include <type_traits>
 
 #include "object_mutex.hpp"
 
@@ -132,8 +135,7 @@ private:
 TEST( ObjectMutex, CouldNotCall_default_constructor )
 {
 	// could not call default constructor
-	static_assert( !std::is_default_constructible<test_class2>::value );
-	// static_assert( !std::is_default_constructible<obj_mutex<test_class2>>::value );
+	static_assert( !std::is_default_constructible<obj_mutex<test_class2>>::value );
 
 	return;
 }
@@ -292,6 +294,36 @@ TEST( ObjectMutex, clone_has_no_relationship )
 
 	return;
 }
+
+TEST( ObjectMutex, clone_to_convertible1 )
+{
+	obj_mutex<char> tt1( 1 );
+	obj_mutex<int>  tt2 = tt1.clone<int>();
+
+	EXPECT_EQ( 1, tt2.lock_get().ref() );
+
+	return;
+}
+
+#if 0
+struct is_callable_clone_impl {
+	template <typename T, typename U>
+	static auto check( T*, U* ) -> decltype( std::declval<obj_mutex<T>*>()->clone<U>(), std::true_type() );
+
+	template <typename T, typename U>
+	static auto check( ... ) -> std::false_type;
+};
+
+template <typename T, typename U>
+struct is_callable_clone : decltype( is_callable_clone_impl::check<T, U>( nullptr, nullptr ) ) {};
+
+TEST( ObjectMutex, clone_to_convertible2 )
+{
+	static_assert( is_callable_clone<char, int>::value, "should be convertible from char to int" );
+	static_assert( !is_callable_clone<int, test_class1>::value, "should not be convertible from int to test_class1" );
+	return;
+}
+#endif
 
 TEST( ObjectMutex, shared_clone_has_the_relationship )
 {

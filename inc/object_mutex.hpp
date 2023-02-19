@@ -119,9 +119,21 @@ public:
 		return ( sp_target_obj_ != nullptr );
 	}
 
-	template <typename U = T>
+	template <typename U = T, typename std::enable_if<std::is_base_of<U, T>::value || std::is_same<T, U>::value>::type* = nullptr>
 	typename obj_mutex<U, MTX_T>::single_accessor lock_get( void ) const
 	{
+		// 型Tの基底クラスUへのアップキャストされたsingle_accessorを得る
+		if ( sp_target_obj_ == nullptr ) {
+			throw std::logic_error( "obj_mutex is empty. has been moved ?" );
+		}
+		std::shared_ptr<U> sp_u( sp_target_obj_ );
+		return typename obj_mutex<U, MTX_T>::single_accessor( sp_mtx_, sp_u );
+	}
+
+	template <typename U = T, typename std::enable_if<std::is_base_of<T, U>::value && !std::is_same<T, U>::value>::type* = nullptr>
+	typename obj_mutex<U, MTX_T>::single_accessor lock_get( void ) const
+	{
+		// 型Tの派生クラスUへのダウンキャストされたsingle_accessorを得る
 		if ( sp_target_obj_ == nullptr ) {
 			throw std::logic_error( "obj_mutex is empty. has been moved ?" );
 		}
@@ -132,10 +144,10 @@ public:
 		return typename obj_mutex<U, MTX_T>::single_accessor( sp_mtx_, sp_u );
 	}
 
-	template <typename U = T, typename std::enable_if<std::is_convertible<T, U>::value>::type* = nullptr>
-	obj_mutex<U, MTX_T> clone( void ) const
+	template <typename U = T, typename MTX_U = MTX_T, typename std::enable_if<std::is_convertible<T, U>::value>::type* = nullptr>
+	obj_mutex<U, MTX_U> clone( void ) const
 	{
-		return obj_mutex<U, MTX_T>( lock_get().ref() );
+		return obj_mutex<U, MTX_U>( lock_get().ref() );
 	}
 
 	obj_mutex shared_clone( void ) const
