@@ -21,11 +21,21 @@ class obj_mutex {
 public:
 	class single_accessor {
 	public:
+		/**
+		 * @brief get a reference of a target object
+		 *
+		 * @return T&
+		 */
 		T& ref( void )
 		{
 			return *sp_target_obj_;
 		}
 
+		/**
+		 * @brief move constructor of a new single accessor object
+		 *
+		 * @param orig
+		 */
 		single_accessor( single_accessor&& orig )
 		  : sp_mtx_( std::move( orig.sp_mtx_ ) )
 		  , sp_target_obj_( std::move( orig.sp_target_obj_ ) )
@@ -33,15 +43,27 @@ public:
 		{
 		}
 
+		/**
+		 * @brief move assignmment
+		 *
+		 * @param orig
+		 * @return single_accessor&
+		 */
 		single_accessor& operator=( single_accessor&& orig )
 		{
-			lk_.unlock();   // 「unlock -> メモリ参照先の開放」という順番となるようにする。
-			lk_            = std::move( orig.lk_ );
+			lk_.unlock();                             // 「unlock -> メモリ参照先の開放」という順番となるようにする。
+			lk_            = std::move( orig.lk_ );   // orig.lk_は、すでにlock済み
 			sp_mtx_        = std::move( orig.sp_mtx_ );
 			sp_target_obj_ = std::move( orig.sp_target_obj_ );
 			return *this;
 		}
 
+		/**
+		 * @brief check the validity
+		 *
+		 * @return true this has a valid object
+		 * @return false this does not have any valid object. e.g. this will happen after move
+		 */
 		bool valid( void ) const
 		{
 			return ( sp_target_obj_ != nullptr );
@@ -73,6 +95,13 @@ public:
 	};
 
 	//////////////////////
+	/**
+	 * @brief Default constructor of a new obj mutex object
+	 *
+	 * If T has a default constructor, this default constructor is defined.
+	 *
+	 * @tparam U
+	 */
 	template <typename U = T, typename std::enable_if<std::is_default_constructible<U>::value>::type* = nullptr>
 	obj_mutex( void )
 	  : sp_mtx_( std::make_shared<MTX_T>() )
@@ -80,6 +109,17 @@ public:
 	{
 	}
 
+	/**
+	 * @brief Move constructor of a new obj mutex object
+	 *
+	 * This constructor support up-cast from type U to type T.
+	 * This means T is base class of U, or T is same type to U.
+	 * Or this means U is a derived class from T.
+	 *
+	 * @tparam U
+	 * @tparam std::enable_if<std::is_base_of<T, U>::value>::type
+	 * @param orig
+	 */
 	template <typename U, typename std::enable_if<std::is_base_of<T, U>::value>::type* = nullptr>
 	obj_mutex( obj_mutex<U, MTX_T>&& orig )
 	  : sp_mtx_( std::move( orig.sp_mtx_ ) )
@@ -88,6 +128,19 @@ public:
 		// 基底クラスへのアップキャスト
 	}
 
+	/**
+	 * @brief Move constructor of a new obj mutex object
+	 *
+	 * This constructor support down-cast from type U to type T.
+	 * This means U is base class of T.
+	 * Or this means T is a derived class from U.
+	 *
+	 * If T is not derived class from U, this throws std::bad_cast exception.
+	 *
+	 * @tparam U
+	 * @tparam std::enable_if<std::is_base_of<U, T>::value && !std::is_same<U, T>::value>::type
+	 * @param orig
+	 */
 	template <typename U, typename std::enable_if<std::is_base_of<U, T>::value && !std::is_same<U, T>::value>::type* = nullptr>
 	obj_mutex( obj_mutex<U, MTX_T>&& orig )
 	  : sp_mtx_( std::move( orig.sp_mtx_ ) )
@@ -102,6 +155,16 @@ public:
 		orig.sp_target_obj_.reset();   // moveコンストラクタであるため、move元を解放する。
 	}
 
+	/**
+	 * @brief Construct a new obj mutex object
+	 *
+	 * Construct with using T(headarg, args...)
+	 *
+	 * @tparam HEADArg this is a type of 1st argument, and is not type of obj_mutex<U>
+	 * @tparam Args these are the types of 2nd and more arguments
+	 * @param headarg 1st argument of T's constructor
+	 * @param args 2nd and more arguments of T's constructor
+	 */
 	template <typename HEADArg, typename U = T, typename... Args,
 	          typename std::enable_if<
 				  !std::is_same<
@@ -114,11 +177,29 @@ public:
 	{
 	}
 
+	obj_mutex& operator=( obj_mutex&& orig )
+	{
+	}
+
+	/**
+	 * @brief check the validity
+	 *
+	 * @return true this has a valid object
+	 * @return false this does not have any valid object. e.g. this will happen after move
+	 */
 	bool valid( void ) const
 	{
 		return ( sp_target_obj_ != nullptr );
 	}
 
+	/**
+	 * @brief get single accessor object with up-cast
+	 *
+	 * if this object is not valid( valid() is flase ), this throws std::logic_error
+	 *
+	 * @tparam U this U is base type of T
+	 * @return obj_mutex<U, MTX_T>::single_accessor
+	 */
 	template <typename U = T, typename std::enable_if<std::is_base_of<U, T>::value || std::is_same<T, U>::value>::type* = nullptr>
 	typename obj_mutex<U, MTX_T>::single_accessor lock_get( void ) const
 	{
@@ -130,6 +211,16 @@ public:
 		return typename obj_mutex<U, MTX_T>::single_accessor( sp_mtx_, sp_u );
 	}
 
+	/**
+	 * @brief get single accessor object with down-cast
+	 *
+	 * if U is not derived class of internal keeping object, this throws std::bad_cast
+	 * if this object is not valid( valid() is flase ), this throws std::logic_error
+	 *
+	 * @tparam U this U is derived class from T
+	 * @tparam std::enable_if<std::is_base_of<T, U>::value && !std::is_same<T, U>::value>::type
+	 * @return obj_mutex<U, MTX_T>::single_accessor
+	 */
 	template <typename U = T, typename std::enable_if<std::is_base_of<T, U>::value && !std::is_same<T, U>::value>::type* = nullptr>
 	typename obj_mutex<U, MTX_T>::single_accessor lock_get( void ) const
 	{
@@ -144,17 +235,39 @@ public:
 		return typename obj_mutex<U, MTX_T>::single_accessor( sp_mtx_, sp_u );
 	}
 
+	/**
+	 * @brief make a clone object
+	 *
+	 * there is no exclusive control b/w the cloned object and this object.
+	 *
+	 * @tparam U type that will clone to
+	 * @tparam MTX_U type of mutex
+	 * @return obj_mutex<U, MTX_U> a cloned object
+	 */
 	template <typename U = T, typename MTX_U = MTX_T, typename std::enable_if<std::is_convertible<T, U>::value>::type* = nullptr>
 	obj_mutex<U, MTX_U> clone( void ) const
 	{
 		return obj_mutex<U, MTX_U>( lock_get().ref() );
 	}
 
+	/**
+	 * @brief make a shered clone object
+	 *
+	 * there is the exclusive control b/w the cloned object and this object.
+	 *
+	 * @return obj_mutex  a cloned object that shares a mutex
+	 */
 	obj_mutex shared_clone( void ) const
 	{
 		return obj_mutex( sp_mtx_, sp_target_obj_ );
 	}
 
+	/**
+	 * @brief check this is locked or not
+	 *
+	 * @return true
+	 * @return false
+	 */
 	bool is_locked( void ) const
 	{
 		bool ans = sp_mtx_->try_lock();
