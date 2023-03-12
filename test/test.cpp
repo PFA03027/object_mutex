@@ -240,6 +240,23 @@ TEST( ObjectMutex, CanCall_base_copy_constructor )
 	return;
 }
 
+TEST( ObjectMutex, CanCall_move_assignment )
+{
+	// constructor check
+	test_class3            ttorig( 10 );
+	obj_mutex<test_class3> tt1( 1 );
+	obj_mutex<test_class3> tt2( 2 );
+
+	EXPECT_EQ( 1, tt1.lock_get().ref().b );
+	EXPECT_EQ( 2, tt2.lock_get().ref().b );
+
+	tt2 = std::move( tt1 );
+
+	EXPECT_EQ( 1, tt2.lock_get().ref().b );
+
+	return;
+}
+
 TEST( ObjectMutex, CanCall_lock_get_upcast )
 {
 	obj_mutex<test_classB> ttB;

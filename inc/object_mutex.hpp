@@ -16,8 +16,14 @@
 #include <mutex>
 #include <stdexcept>
 
+class obj_mutex_base {
+protected:
+	static std::mutex assignment_operator_mtx_;
+};
+inline std::mutex obj_mutex_base::assignment_operator_mtx_;
+
 template <typename T, typename MTX_T = std::mutex>
-class obj_mutex {
+class obj_mutex : protected obj_mutex_base {
 public:
 	class single_accessor {
 	public:
@@ -177,8 +183,25 @@ public:
 	{
 	}
 
+	/**
+	 * @brief move assignmment
+	 *
+	 * @param orig
+	 * @return obj_mutex&
+	 */
 	obj_mutex& operator=( obj_mutex&& orig )
 	{
+		std::lock_guard<std::mutex> assignment_operator_lk( assignment_operator_mtx_ );
+		std::shared_ptr<T>          sp_tmp_target_obj;
+		{
+			std::lock_guard<MTX_T> orig_side_lk( *( orig.sp_mtx_ ) );
+			sp_tmp_target_obj = std::move( orig.sp_target_obj_ );
+		}
+		{
+			std::lock_guard<MTX_T> this_side_lk( *( sp_mtx_ ) );
+			sp_target_obj_ = std::move( sp_tmp_target_obj );
+		}
+		return *this;
 	}
 
 	/**
