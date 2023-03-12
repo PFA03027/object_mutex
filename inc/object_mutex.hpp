@@ -82,10 +82,10 @@ public:
 		}
 
 	private:
-		single_accessor( std::shared_ptr<MTX_T> sp_mtx_arg, std::shared_ptr<T> sp_target_obj_arg )
+		single_accessor( std::shared_ptr<MTX_T> sp_mtx_arg, std::unique_lock<MTX_T> lk_arg, std::shared_ptr<T> sp_target_obj_arg )
 		  : sp_mtx_( std::move( sp_mtx_arg ) )
 		  , sp_target_obj_( std::move( sp_target_obj_arg ) )
-		  , lk_( *sp_mtx_ )
+		  , lk_( std::move( lk_arg ) )
 		{
 		}
 
@@ -128,10 +128,13 @@ public:
 	 */
 	template <typename U, typename std::enable_if<std::is_base_of<T, U>::value>::type* = nullptr>
 	obj_mutex( obj_mutex<U, MTX_T>&& orig )
-	  : sp_mtx_( std::move( orig.sp_mtx_ ) )
-	  , sp_target_obj_( std::move( orig.sp_target_obj_ ) )
+	  : sp_mtx_()
+	  , sp_target_obj_()
 	{
 		// 基底クラスへのアップキャスト
+		std::lock_guard<MTX_T> lk( *( orig.sp_mtx_ ) );
+		sp_target_obj_ = std::move( orig.sp_target_obj_ );
+		sp_mtx_        = std::move( orig.sp_mtx_ );
 	}
 
 	/**
@@ -149,16 +152,19 @@ public:
 	 */
 	template <typename U, typename std::enable_if<std::is_base_of<U, T>::value && !std::is_same<U, T>::value>::type* = nullptr>
 	obj_mutex( obj_mutex<U, MTX_T>&& orig )
-	  : sp_mtx_( std::move( orig.sp_mtx_ ) )
-	  , sp_target_obj_( std::dynamic_pointer_cast<T>( orig.sp_target_obj_ ) )
+	  : sp_mtx_()
+	  , sp_target_obj_()
 	{
 		// 派生クラスへのダウンキャスト
 		// ダウンキャスト失敗した場合は、move元に情報が残る仕様とする。
+		std::lock_guard<MTX_T> lk( *( orig.sp_mtx_ ) );
+		sp_target_obj_ = std::dynamic_pointer_cast<T>( orig.sp_target_obj_ );
 		if ( ( orig.sp_target_obj_ != nullptr ) && ( sp_target_obj_ == nullptr ) ) {
 			// ダウンキャスト失敗
 			throw std::bad_cast();
 		}
 		orig.sp_target_obj_.reset();   // moveコンストラクタであるため、move元を解放する。
+		sp_mtx_ = std::move( orig.sp_mtx_ );
 	}
 
 	/**
@@ -192,14 +198,17 @@ public:
 	obj_mutex& operator=( obj_mutex&& orig )
 	{
 		std::lock_guard<std::mutex> assignment_operator_lk( assignment_operator_mtx_ );
+		std::shared_ptr<MTX_T>      sp_tmp_mtx_;
 		std::shared_ptr<T>          sp_tmp_target_obj;
 		{
 			std::lock_guard<MTX_T> orig_side_lk( *( orig.sp_mtx_ ) );
 			sp_tmp_target_obj = std::move( orig.sp_target_obj_ );
+			sp_tmp_mtx_       = std::move( orig.sp_mtx_ );
 		}
 		{
 			std::lock_guard<MTX_T> this_side_lk( *( sp_mtx_ ) );
 			sp_target_obj_ = std::move( sp_tmp_target_obj );
+			sp_mtx_        = std::move( sp_tmp_mtx_ );
 		}
 		return *this;
 	}
@@ -212,7 +221,8 @@ public:
 	 */
 	bool valid( void ) const
 	{
-		return ( sp_target_obj_ != nullptr );
+		std::lock_guard<std::mutex> assignment_operator_lk( assignment_operator_mtx_ );
+		return ( ( sp_target_obj_ != nullptr ) && ( sp_mtx_ != nullptr ) );
 	}
 
 	/**
@@ -227,11 +237,17 @@ public:
 	typename obj_mutex<U, MTX_T>::single_accessor lock_get( void ) const
 	{
 		// 型Tの基底クラスUへのアップキャストされたsingle_accessorを得る
-		if ( sp_target_obj_ == nullptr ) {
+		if ( ( sp_target_obj_ == nullptr ) || ( sp_mtx_ == nullptr ) ) {
+			throw std::logic_error( "obj_mutex is empty. has been moved ?" );
+		}
+
+		std::shared_ptr<MTX_T>  sp_mtx_tmp = sp_mtx_;
+		std::unique_lock<MTX_T> lk_my( *sp_mtx_tmp );
+		if ( sp_mtx_tmp != sp_mtx_ ) {
 			throw std::logic_error( "obj_mutex is empty. has been moved ?" );
 		}
 		std::shared_ptr<U> sp_u( sp_target_obj_ );
-		return typename obj_mutex<U, MTX_T>::single_accessor( sp_mtx_, sp_u );
+		return typename obj_mutex<U, MTX_T>::single_accessor( sp_mtx_, std::move( lk_my ), sp_u );
 	}
 
 	/**
@@ -248,14 +264,20 @@ public:
 	typename obj_mutex<U, MTX_T>::single_accessor lock_get( void ) const
 	{
 		// 型Tの派生クラスUへのダウンキャストされたsingle_accessorを得る
-		if ( sp_target_obj_ == nullptr ) {
+		if ( ( sp_target_obj_ == nullptr ) || ( sp_mtx_ == nullptr ) ) {
+			throw std::logic_error( "obj_mutex is empty. has been moved ?" );
+		}
+
+		std::shared_ptr<MTX_T>  sp_mtx_tmp = sp_mtx_;
+		std::unique_lock<MTX_T> lk_my( *sp_mtx_tmp );
+		if ( sp_mtx_tmp != sp_mtx_ ) {
 			throw std::logic_error( "obj_mutex is empty. has been moved ?" );
 		}
 		std::shared_ptr<U> sp_u = std::dynamic_pointer_cast<U>( sp_target_obj_ );
 		if ( sp_u == nullptr ) {
 			throw std::bad_cast();
 		}
-		return typename obj_mutex<U, MTX_T>::single_accessor( sp_mtx_, sp_u );
+		return typename obj_mutex<U, MTX_T>::single_accessor( sp_mtx_, std::move( lk_my ), sp_u );
 	}
 
 	/**
