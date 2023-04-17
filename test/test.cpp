@@ -406,3 +406,66 @@ TEST( ObjectMutex, T_is_construct_by_move_only_argument2 )
 
 	return;
 }
+
+TEST( ObjectMutex, non_class )
+{
+	obj_mutex<int> tt_int( 11 );
+
+	EXPECT_EQ( 11, tt_int.lock_get().ref() );
+
+	return;
+}
+
+TEST( ObjectMutex, non_class_clone )
+{
+	obj_mutex<int> tt_int( 11 );
+	obj_mutex<int> tt_int1   = tt_int.clone();
+	tt_int1.lock_get().ref() = 12;
+
+	EXPECT_EQ( 11, tt_int.lock_get().ref() );
+	EXPECT_EQ( 12, tt_int1.lock_get().ref() );
+
+	return;
+}
+
+TEST( ObjectMutex, non_class_shared_clone )
+{
+	obj_mutex<int> tt_int( 11 );
+	obj_mutex<int> tt_int1   = tt_int.shared_clone();
+	tt_int1.lock_get().ref() = 12;
+
+	EXPECT_EQ( 12, tt_int.lock_get().ref() );
+	EXPECT_EQ( 12, tt_int1.lock_get().ref() );
+
+	return;
+}
+
+TEST( ObjectMutex, non_class_move_constructor )
+{
+	// Arrange
+	obj_mutex<int> tt_int( 11 );
+
+	// Act
+	obj_mutex<int> tt_int1( std::move( tt_int ) );
+
+	// Assert
+	EXPECT_FALSE( tt_int.valid() );
+	EXPECT_EQ( 11, tt_int1.lock_get().ref() );
+
+	return;
+}
+
+TEST( ObjectMutex, non_class_move_assingment )
+{
+	obj_mutex<int> tt_int( 11 );
+	obj_mutex<int> tt_int1( 12 );
+	EXPECT_EQ( 11, tt_int.lock_get().ref() );
+	EXPECT_EQ( 12, tt_int1.lock_get().ref() );
+
+	tt_int1 = std::move( tt_int );
+
+	EXPECT_FALSE( tt_int.valid() );
+	EXPECT_EQ( 11, tt_int1.lock_get().ref() );
+
+	return;
+}
