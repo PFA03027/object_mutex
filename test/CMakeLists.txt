@@ -26,7 +26,7 @@ message(FATAL_ERROR "The submodules were not downloaded! GOOGLETEST was turned o
 # cd googletest
 # git checkout release-1.12.1
 # cd ..
-# git add test/lib/googletest
+# git add googletest
 # git commit -m "Add submodule googletest for testing"
 endif()
 
