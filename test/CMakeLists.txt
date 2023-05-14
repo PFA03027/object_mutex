@@ -22,7 +22,6 @@ endif()
 
 if(NOT EXISTS "${PROJECT_SOURCE_DIR}/googletest/CMakeLists.txt")
 message(FATAL_ERROR "The submodules were not downloaded! GOOGLETEST was turned off or failed. Please update submodules and try again.")
-# mkdir -p googletest
 # git submodule add https://github.com/google/googletest.git googletest
 # cd googletest
 # git checkout release-1.12.1
