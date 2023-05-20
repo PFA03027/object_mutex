@@ -168,7 +168,7 @@ public:
 	 * @tparam std::enable_if<std::is_base_of<T, U>::value>::type
 	 * @param orig
 	 */
-	template <typename U = T, typename std::enable_if<std::is_base_of<T, U>::value || std::is_same<T, U>::value>::type* = nullptr>
+	template <typename U, typename std::enable_if<std::is_base_of<T, U>::value || std::is_same<T, U>::value>::type* = nullptr>
 	obj_mutex( obj_mutex<U, MTX_T>&& orig )
 	  : sp_data_( std::move( orig.sp_data_ ) )
 	{
@@ -411,6 +411,9 @@ private:
 		auto sp_tt = std::dynamic_pointer_cast<data_carrier_non_class<T, MTX_T>>( sp_data_ );
 		if ( sp_tt == nullptr ) {
 			throw std::bad_cast();
+			// 自身が保持しているクラス型ではない型Tへのキャストなので、dynamic_castは必ず成功する。
+			// そのため、この例外を発生させるテストコードは書けない。
+			// なお、sp_data_自身は、get_refを呼び出す側で、non nullptrであることが確認済みとなっている前提。
 		}
 		return sp_tt->data_;
 	}
@@ -421,6 +424,9 @@ private:
 		auto sp_tt = std::dynamic_pointer_cast<data_carrier_non_class<T, MTX_T>>( sp_data_ );
 		if ( sp_tt == nullptr ) {
 			throw std::bad_cast();
+			// 自身が保持しているクラス型ではない型Tへのキャストなので、dynamic_castは必ず成功する。
+			// そのため、この例外を発生させるテストコードは書けない。
+			// なお、sp_data_自身は、get_refを呼び出す側で、non nullptrであることが確認済みとなっている前提。
 		}
 		return sp_tt->data_;
 	}

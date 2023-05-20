@@ -469,3 +469,57 @@ TEST( ObjectMutex, non_class_move_assingment )
 
 	return;
 }
+
+class testA1 {};
+class testB2 : public testA1 {
+};
+
+TEST( ObjectMutex, non_class_move_constructor_then_move )
+{
+	// Arrange
+	obj_mutex<testA1> tt_int;
+
+	// Act & Assert
+	EXPECT_THROW( obj_mutex<testB2> xx( std::move( tt_int ) ), std::bad_cast );
+
+	return;
+}
+
+TEST( ObjectMutex, objmutex_access_that_has_been_moved )
+{
+	obj_mutex<int> tt_int( 11 );
+	obj_mutex<int> tt_int1( 12 );
+	EXPECT_EQ( 11, tt_int.lock_get().ref() );
+	EXPECT_EQ( 12, tt_int1.lock_get().ref() );
+
+	tt_int1 = std::move( tt_int );
+
+	EXPECT_THROW( tt_int.lock_get(), std::logic_error );
+}
+
+TEST( ObjectMutex, const_objmutex_access_that_has_been_moved )
+{
+	obj_mutex<int> tt_int( 11 );
+	obj_mutex<int> tt_int1( 12 );
+	EXPECT_EQ( 11, tt_int.lock_get().ref() );
+	EXPECT_EQ( 12, tt_int1.lock_get().ref() );
+
+	tt_int1 = std::move( tt_int );
+
+	{
+		const obj_mutex<int>& ref_tt_int = tt_int;
+		EXPECT_THROW( ref_tt_int.lock_get(), std::logic_error );
+	}
+}
+
+TEST( ObjectMutex, accesseser_has_been_moved )
+{
+	// Arrange
+	obj_mutex<int> tt_int( 11 );
+	auto           ac  = tt_int.lock_get();
+	auto           ac2 = std::move( ac );
+
+	// Act Assert
+	EXPECT_THROW( ac.ref(), std::logic_error );
+	EXPECT_NO_THROW( ac2.ref() );
+}
