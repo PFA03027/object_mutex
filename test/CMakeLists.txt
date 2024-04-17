@@ -39,7 +39,7 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/googletest/CMakeLists.txt")
     add_test(NAME test_object_mutex COMMAND $<TARGET_FILE:test_object_mutex>)
 
 else()
-    message(FATAL_ERROR "The submodules were not downloaded! GOOGLETEST was turned off or failed. Please update submodules and try again.")
+    message("The submodules were not downloaded! GOOGLETEST was turned off or failed. Skip the unit test executables build")
     # git submodule add https://github.com/google/googletest.git googletest
     # cd googletest
     # git checkout release-1.12.1
