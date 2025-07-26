@@ -764,3 +764,34 @@ TEST( TestObjSharedLock, CanTryLockUntil_ThenNotLocked )
 	// Clean up
 	sut.unlock();
 }
+
+// ========================================================
+
+TEST( TestObjMutex, CanHandleWithStdConditionVariable )
+{
+	// Arrange
+	obj_mutex<int>             om( 42 );
+	std::condition_variable    cv;
+	std::packaged_task<bool()> task( [&om, &cv]() {
+		obj_unique_lock lock( om );
+		cv.wait( lock, [&lock]() { return lock.ref() == 0; } );
+		lock.ref() = 1;   // Change the value to trigger the condition variable
+		return true;
+	} );
+	std::future<bool>          future = task.get_future();
+	std::thread                t( std::move( task ) );
+	t.detach();
+	{
+		obj_lock_guard lock( om );
+		lock.ref() = 0;   // Change the value to trigger the condition variable
+	}
+
+	// Act
+	cv.notify_all();
+
+	// Assert
+	bool ret = future.get();
+	EXPECT_TRUE( ret );
+	obj_lock_guard lock2( om );
+	EXPECT_EQ( lock2.ref(), 1 );   // Check if the value was changed by the thread waiting on the condition variable
+}

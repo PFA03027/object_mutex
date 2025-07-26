@@ -38,6 +38,7 @@ You can also change the state of a shared lock.
 Implemented as a derived class of std::shared_lock.
 
 ## Usage example
+### Example of using obj_lock_guard\<OM\>
 ```cpp
 struct test_t {
     int value;
@@ -53,6 +54,39 @@ int func1( void )
     return lock.ref().value; // Access the value of test_t in the exclusively controlled om
 }
 ```
+### Example of use in combination with std::condition_variable
+```cpp
+#include <condition_variable>
+#include "object_mutex.hpp" // include object_mutex.hpp
+struct test_t {
+    int value;
+    test_t( int v )
+        : value( v ) {}
+};
+obj_mutex<test_t> om( test_t(42) ); // Create obj_mutex to exclusively control the instance of test_t
+std::condition_variable cv; // Condition Variables
+
+void func1( void )
+{
+    obj_unique_lock locked_obj( om );
+    // Creates an obj_unique_lock that locks an instance of obj_mutex equivalent to std::unique_lock<std::mutex>.
+
+    cv.wait( lock, [&locked_obj] -> bool {
+        return locked_obj.ref().value == 0; // Condition variable wait condition
+    } ); // Waiting on a condition variable
+    // Since we are using obj_unique_lock, we access the instance of test_t in the variable om via om.ref() and check the state.
+}
+
+void func2( void )
+{
+    obj_lock_guard locked_obj( om );
+    // Creates an obj_lock_guard that locks an instance of obj_mutex equivalent to std::lock_guard<std::mutex>.
+
+    locked_obj.ref().value = 0; // Change the value of an instance of test_t in om
+    cv.notify_all(); // Signal to a condition variable
+}
+```
+
 
 ## Restrictions, etc.
 ### Uses features from C++17 or later
@@ -111,7 +145,9 @@ std::unique_lockからの派生蔵であることにより、std::condition_vari
 std::shared_lockの派生クラスとして実装されています。
 
 ## 利用例
+### obj_lock_guard\<OM\>を利用する例
 ```cpp
+#include "object_mutex.hpp" // object_mutex.hppをインクルード
 struct test_t {
     int value;
     test_t( int v )
@@ -125,6 +161,41 @@ int func1( void )
     // test_tのインスタンスにアクセスできる。
 
 	return sut.ref().value; // 排他制御されているom内のtest_tのvalueにアクセス
+}
+```
+### std::condition_variableと組み合わせて利用する例
+```cpp
+#include <condition_variable>
+#include "object_mutex.hpp" // object_mutex.hppをインクルード
+struct test_t {
+    int value;
+    test_t( int v )
+        : value( v ) {}
+};
+obj_mutex<test_t> om( test_t(42) ); // test_tのインスタンスを排他制御するobj_mutexを生成
+std::condition_variable cv; // 条件変数
+
+void func1( void )
+{
+    obj_unique_lock locked_obj( om );
+    // std::unique_lock<std::mutex>に相当するobj_mutexの
+    /// インスタンスをロックするobj_unique_lockを生成
+
+    cv.wait( lock, [&locked_obj] -> bool {
+        return locked_obj.ref().value == 0; // 条件変数の待機条件
+    } ); // 条件変数を待機
+    // obj_unique_lockを使用しているので、om.ref()を通じて
+    // 変数om内のtest_tのインスタンスにアクセスし、状態を検査する。
+}
+
+void func2( void )
+{
+    obj_lock_guard locked_obj( om );
+    // std::lock_guard<std::mutex>に相当するobj_mutexの
+    /// インスタンスをロックするobj_lock_guardを生成
+
+    locked_obj.ref().value = 0; // test_tのインスタンスの値を変更
+    cv.notify_all(); // 条件変数を通知
 }
 ```
 
