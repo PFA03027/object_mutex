@@ -6,23 +6,36 @@
         {
             "label": "test-> make debug-all",
             "type": "shell",
-            "command": "cd ${workspaceFolder}/test; make debug-all",
+            "command": "cmake debug-all",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
             "problemMatcher": [
                 "$gcc"
             ]
         },
         {
-            "label": "make all",
+            "label": "make test",
             "type": "shell",
-            "command": "cd ${workspaceFolder}/test; make all",
+            "command": "make test",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
             "problemMatcher": [
                 "$gcc"
-            ]
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         },
         {
             "label": "make clean",
             "type": "shell",
-            "command": "cd ${workspaceFolder}/test; make clean",
+            "command": "make clean",
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
             "problemMatcher": [
                 "$gcc"
             ]

@@ -1,525 +1,766 @@
+/**
+ * @file test.cpp
+ * @author Teruaki Ata (PFA03027@nifty.com)
+ * @brief
+ * @version 0.1
+ * @date 2025-07-26
+ *
+ * @copyright Copyright (c) 2025, Teruaki Ata (PFA03027@nifty.com)
+ *
+ */
 
-#include <cstdlib>
-#include <iostream>
+#include <future>
 #include <memory>
-#include <mutex>
-#include <type_traits>
+#include <shared_mutex>
 
 #include "object_mutex.hpp"
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
-class test_class1 {
-public:
-	test_class1( void )
-	{
-		a = 10;
-		b = 11;
-	}
-	test_class1( int a_arg, int b_arg )
-	  : a( a_arg )
-	  , b( b_arg )
-	{
-	}
+// ========================================================
 
-	int a;
-	int b;
-};
-
-TEST( ObjectMutex, CanCall_default_constructor )
-{
-	// constructor check
-	obj_mutex<test_class1> tt1;
-
-	EXPECT_EQ( 10, tt1.lock_get().ref().a );
-	EXPECT_EQ( 11, tt1.lock_get().ref().b );
-
-	return;
-}
-
-TEST( ObjectMutex, Locked )
-{
-	obj_mutex<test_class1> tt;
-
-	{
-		auto locked_data = tt.lock_get();
-		EXPECT_TRUE( tt.is_locked() );
-	}
-	EXPECT_FALSE( tt.is_locked() );
-
-	return;
-}
-
-TEST( ObjectMutex, Locked_move1 )
-{
-	obj_mutex<test_class1> tt11( 11, 12 );
-
-	auto locked_data1 = tt11.lock_get();
-	auto locked_data2 = std::move( locked_data1 );
-
-	EXPECT_FALSE( locked_data1.valid() );
-	EXPECT_TRUE( locked_data2.valid() );
-	EXPECT_EQ( 11, locked_data2.ref().a );
-
-	return;
-}
-
-TEST( ObjectMutex, Locked_move2 )
-{
-	obj_mutex<test_class1> tt11( 11, 12 );
-	obj_mutex<test_class1> tt12( 21, 22 );
-
-	auto locked_data1 = tt11.lock_get();
-	auto locked_data2 = tt12.lock_get();
-
-	EXPECT_TRUE( locked_data1.valid() );
-	EXPECT_TRUE( locked_data2.valid() );
-	EXPECT_EQ( 21, locked_data2.ref().a );
-
-	locked_data2 = std::move( locked_data1 );
-
-	EXPECT_FALSE( locked_data1.valid() );
-	EXPECT_TRUE( locked_data2.valid() );
-	EXPECT_EQ( 11, locked_data2.ref().a );
-
-	return;
-}
-
-TEST( ObjectMutex, RecusiveMutexLocked )
-{
-	obj_mutex<test_class1, std::recursive_mutex> tt3;
-
-	{
-		auto locked_data1 = tt3.lock_get();
-		// std::cout << "test log:" << std::to_string( locked_data1.ref().a ) << std::endl;
-
-		EXPECT_NE( 20, locked_data1.ref().a );
-		locked_data1.ref().a = 20;
-
-		ASSERT_FALSE( tt3.is_locked() );
-
-		auto locked_data2 = tt3.lock_get();
-		EXPECT_EQ( 20, locked_data2.ref().a );
-	}
-	ASSERT_FALSE( tt3.is_locked() );
-
-	return;
-}
-
-typename obj_mutex<test_class1>::single_accessor tttt( void )
-{
-	static obj_mutex<test_class1> tt1;
-	return tt1.lock_get();
-}
-
-TEST( ObjectMutex, move_constructor_single_accessor )
-{
-	auto locked_data1 = tttt();
-	EXPECT_EQ( 10, locked_data1.ref().a );
-	return;
-}
-
-class test_class2 {
-public:
-	test_class2( int a_arg, int b_arg )
-	  : a( a_arg )
-	  , b( b_arg )
-	{
-	}
-
-private:
-	int a;
-	int b;
-};
-
-TEST( ObjectMutex, CouldNotCall_default_constructor )
-{
-	// could not call default constructor
-	static_assert( !std::is_default_constructible<obj_mutex<test_class2>>::value );
-
-	return;
-}
-
-TEST( ObjectMutex, CanCall_move_constructor )
-{
-	static_assert( std::is_move_constructible<obj_mutex<test_class1>>::value );
-
-	obj_mutex<test_class1> tt1;
-	tt1.lock_get().ref().a     = 20;
-	obj_mutex<test_class1> tt2 = std::move( tt1 );
-
-	EXPECT_FALSE( tt1.valid() );
-	EXPECT_TRUE( tt2.valid() );
-	EXPECT_EQ( 20, tt2.lock_get().ref().a );
-	return;
-}
-
-class test_classA {
-public:
-	test_classA( int a_arg = 0 )
-	  : a( a_arg )
-	{
-	}
-
-	virtual ~test_classA() = default;
-
-	int a;
-};
-
-class test_classB : public test_classA {
-public:
-	test_classB( int b_arg = 0 )
-	  : test_classA()
-	  , b( b_arg )
-	{
-	}
-
-	int b;
-};
-
-TEST( ObjectMutex, CanCall_up_cast_move_constructor )
-{
-	obj_mutex<test_classB> ttB;
-	ttB.lock_get().ref().a = 20;
-	ASSERT_NO_THROW( {
-		obj_mutex<test_classA> ttA = std::move( ttB );
-		EXPECT_EQ( 20, ttA.lock_get().ref().a );
-	} );
-	EXPECT_FALSE( ttB.valid() );
-	return;
-}
-
-TEST( ObjectMutex, CanCall_down_cast_move_constructor )
-{
-	obj_mutex<test_classB> ttB;
-	ttB.lock_get().ref().a     = 20;
-	obj_mutex<test_classA> ttA = std::move( ttB );
-	ASSERT_NO_THROW( {
-		obj_mutex<test_classB> ttB2 = std::move( ttA );
-		EXPECT_EQ( 20, ttB2.lock_get().ref().a );
-	} );
-	EXPECT_FALSE( ttA.valid() );
-	EXPECT_FALSE( ttB.valid() );
-	return;
-}
-
-TEST( ObjectMutex, CanCall_translate_constructor )
-{
-	// constructor check
-	obj_mutex<test_class1> tt1( 1, 2 );
-
-	EXPECT_EQ( 1, tt1.lock_get().ref().a );
-	EXPECT_EQ( 2, tt1.lock_get().ref().b );
-
-	return;
-}
-
-class test_class3 {
-public:
-	test_class3( int b_arg = 0 )
-	  : b( b_arg )
-	{
-	}
-
-	test_class3( const test_class3& orig )
-	  : b( orig.b )
-	{
-	}
-
-	int b;
-};
-
-TEST( ObjectMutex, CanCall_base_copy_constructor )
-{
-	// constructor check
-	test_class3            ttorig( 10 );
-	obj_mutex<test_class3> tt3( ttorig );
-
-	EXPECT_EQ( 10, tt3.lock_get().ref().b );
-
-	return;
-}
-
-TEST( ObjectMutex, CanCall_move_assignment )
-{
-	// constructor check
-	test_class3            ttorig( 10 );
-	obj_mutex<test_class3> tt1( 1 );
-	obj_mutex<test_class3> tt2( 2 );
-
-	EXPECT_EQ( 1, tt1.lock_get().ref().b );
-	EXPECT_EQ( 2, tt2.lock_get().ref().b );
-
-	tt2 = std::move( tt1 );
-
-	EXPECT_EQ( 1, tt2.lock_get().ref().b );
-
-	return;
-}
-
-TEST( ObjectMutex, CanCall_lock_get_upcast )
-{
-	obj_mutex<test_classB> ttB;
-	ttB.lock_get().ref().a = 20;
-	ASSERT_NO_THROW( {
-		EXPECT_EQ( 20, ttB.lock_get<test_classA>().ref().a );
-	} );
-	return;
-}
-
-TEST( ObjectMutex, CanCall_lock_get_downcast )
-{
-	obj_mutex<test_classA> ttA = obj_mutex<test_classB>( 21 );
-
-	ASSERT_NO_THROW( {
-		EXPECT_EQ( 21, ttA.lock_get<test_classB>().ref().b );
-	} );
-	return;
-}
-
-TEST( ObjectMutex, Invalid_obj_mutex_throw )
-{
-	obj_mutex<test_class1> tt1;
-	obj_mutex<test_class1> tt2 = std::move( tt1 );
-	EXPECT_THROW( tt1.lock_get(), std::logic_error );
-	EXPECT_EQ( 10, tt2.lock_get().ref().a );
-	return;
-}
-
-TEST( ObjectMutex, obj_mutex_throw_by_fail_dynamic_cast )
-{
-	obj_mutex<test_classA> ttA;
-
-	EXPECT_THROW( ttA.lock_get<test_classB>(), std::bad_cast );
-
-	return;
-}
-
-TEST( ObjectMutex, clone_has_no_relationship )
-{
-	obj_mutex<test_class1> tt1( 1, 2 );
-	obj_mutex<test_class1> tt2 = tt1.clone();
-
-	EXPECT_TRUE( tt1.valid() );
-	auto locked_acc1 = tt1.lock_get();
-	EXPECT_FALSE( tt2.is_locked() );
-
-	locked_acc1.ref().a = 10;
-
-	auto locked_acc2 = tt2.lock_get();
-	EXPECT_EQ( 1, locked_acc2.ref().a );
-
-	return;
-}
-
-TEST( ObjectMutex, clone_to_convertible1 )
-{
-	obj_mutex<char> tt1( 1 );
-	obj_mutex<int>  tt2 = tt1.clone<int>();
-
-	EXPECT_EQ( 1, tt2.lock_get().ref() );
-
-	return;
-}
-
-#if 0
-struct is_callable_clone_impl {
-	template <typename T, typename U>
-	static auto check( T*, U* ) -> decltype( std::declval<obj_mutex<T>*>()->clone<U>(), std::true_type() );
-
-	template <typename T, typename U>
-	static auto check( ... ) -> std::false_type;
-};
-
-template <typename T, typename U>
-struct is_callable_clone : decltype( is_callable_clone_impl::check<T, U>( nullptr, nullptr ) ) {};
-
-TEST( ObjectMutex, clone_to_convertible2 )
-{
-	static_assert( is_callable_clone<char, int>::value, "should be convertible from char to int" );
-	static_assert( !is_callable_clone<int, test_class1>::value, "should not be convertible from int to test_class1" );
-	return;
-}
-#endif
-
-TEST( ObjectMutex, shared_clone_has_the_relationship )
-{
-	obj_mutex<test_class1> tt1( 1, 2 );
-	obj_mutex<test_class1> tt2 = tt1.shared_clone();
-
-	EXPECT_TRUE( tt1.valid() );
-
-	{
-		auto locked_acc2 = tt2.lock_get();
-		EXPECT_EQ( 1, locked_acc2.ref().a );
-	}
-	{
-		auto locked_acc1 = tt1.lock_get();
-		EXPECT_TRUE( tt2.is_locked() );
-		EXPECT_EQ( 1, locked_acc1.ref().a );
-
-		locked_acc1.ref().a = 10;
-	}
-
-	{
-		auto locked_acc2 = tt2.lock_get();
-		EXPECT_TRUE( tt1.is_locked() );
-		EXPECT_EQ( 10, locked_acc2.ref().a );
-	}
-
-	return;
-}
-
-class test_class4 {
-public:
-	test_class4( std::unique_ptr<int> up_b_arg )
-	  : a( 0 )
-	  , up_b( std::move( up_b_arg ) )
-	{
-	}
-
-	test_class4( int a_arg, std::unique_ptr<int> up_b_arg )
-	  : a( a_arg )
-	  , up_b( std::move( up_b_arg ) )
-	{
-	}
-
-	int                  a;
-	std::unique_ptr<int> up_b;
-};
-
-TEST( ObjectMutex, T_is_construct_by_move_only_argument1 )
-{
-	obj_mutex<test_class4> ttA( std::unique_ptr<int>( new int( 11 ) ) );
-
-	EXPECT_EQ( 11, *( ttA.lock_get().ref().up_b ) );
-
-	return;
-}
-
-TEST( ObjectMutex, T_is_construct_by_move_only_argument2 )
-{
-	obj_mutex<test_class4> ttA( 11, std::unique_ptr<int>( new int( 12 ) ) );
-
-	EXPECT_EQ( 11, ttA.lock_get().ref().a );
-	EXPECT_EQ( 12, *( ttA.lock_get().ref().up_b ) );
-
-	return;
-}
-
-TEST( ObjectMutex, non_class )
-{
-	obj_mutex<int> tt_int( 11 );
-
-	EXPECT_EQ( 11, tt_int.lock_get().ref() );
-
-	return;
-}
-
-TEST( ObjectMutex, non_class_clone )
-{
-	obj_mutex<int> tt_int( 11 );
-	obj_mutex<int> tt_int1   = tt_int.clone();
-	tt_int1.lock_get().ref() = 12;
-
-	EXPECT_EQ( 11, tt_int.lock_get().ref() );
-	EXPECT_EQ( 12, tt_int1.lock_get().ref() );
-
-	return;
-}
-
-TEST( ObjectMutex, non_class_shared_clone )
-{
-	obj_mutex<int> tt_int( 11 );
-	obj_mutex<int> tt_int1   = tt_int.shared_clone();
-	tt_int1.lock_get().ref() = 12;
-
-	EXPECT_EQ( 12, tt_int.lock_get().ref() );
-	EXPECT_EQ( 12, tt_int1.lock_get().ref() );
-
-	return;
-}
-
-TEST( ObjectMutex, non_class_move_constructor )
+TEST( TestObjectMutex, CanDefaultConstruct )
 {
 	// Arrange
-	obj_mutex<int> tt_int( 11 );
 
 	// Act
-	obj_mutex<int> tt_int1( std::move( tt_int ) );
+	obj_mutex<int> om;
 
 	// Assert
-	EXPECT_FALSE( tt_int.valid() );
-	EXPECT_EQ( 11, tt_int1.lock_get().ref() );
-
-	return;
 }
 
-TEST( ObjectMutex, non_class_move_assingment )
-{
-	obj_mutex<int> tt_int( 11 );
-	obj_mutex<int> tt_int1( 12 );
-	EXPECT_EQ( 11, tt_int.lock_get().ref() );
-	EXPECT_EQ( 12, tt_int1.lock_get().ref() );
-
-	tt_int1 = std::move( tt_int );
-
-	EXPECT_FALSE( tt_int.valid() );
-	EXPECT_EQ( 11, tt_int1.lock_get().ref() );
-
-	return;
-}
-
-class testA1 {};
-class testB2 : public testA1 {
-};
-
-TEST( ObjectMutex, non_class_move_constructor_then_move )
+TEST( TestObjectMutex, CanNativeHandle )
 {
 	// Arrange
-	obj_mutex<testA1> tt_int;
+	obj_mutex<int> om;
 
-	// Act & Assert
-	EXPECT_THROW( obj_mutex<testB2> xx( std::move( tt_int ) ), std::bad_cast );
+	// Act
+	auto handle = om.native_handle();
 
-	return;
+	// Assert
+	EXPECT_NE( handle, nullptr );
 }
 
-TEST( ObjectMutex, objmutex_access_that_has_been_moved )
-{
-	obj_mutex<int> tt_int( 11 );
-	obj_mutex<int> tt_int1( 12 );
-	EXPECT_EQ( 11, tt_int.lock_get().ref() );
-	EXPECT_EQ( 12, tt_int1.lock_get().ref() );
-
-	tt_int1 = std::move( tt_int );
-
-	EXPECT_THROW( tt_int.lock_get(), std::logic_error );
-}
-
-TEST( ObjectMutex, const_objmutex_access_that_has_been_moved )
-{
-	obj_mutex<int> tt_int( 11 );
-	obj_mutex<int> tt_int1( 12 );
-	EXPECT_EQ( 11, tt_int.lock_get().ref() );
-	EXPECT_EQ( 12, tt_int1.lock_get().ref() );
-
-	tt_int1 = std::move( tt_int );
-
-	{
-		const obj_mutex<int>& ref_tt_int = tt_int;
-		EXPECT_THROW( ref_tt_int.lock_get(), std::logic_error );
-	}
-}
-
-TEST( ObjectMutex, accesseser_has_been_moved )
+TEST( TestObjectMutex, CanTryLock )
 {
 	// Arrange
-	obj_mutex<int> tt_int( 11 );
-	auto           ac  = tt_int.lock_get();
-	auto           ac2 = std::move( ac );
+	obj_mutex<int, std::timed_mutex> sut( 42 );
 
-	// Act Assert
-	EXPECT_THROW( ac.ref(), std::logic_error );
-	EXPECT_NO_THROW( ac2.ref() );
+	// Act
+	bool locked = sut.try_lock();
+
+	// Assert
+	EXPECT_TRUE( locked );
+
+	// Clean up
+	sut.unlock();
+}
+
+TEST( TestObjectMutex, CanTryLockFor )
+{
+	// Arrange
+	obj_mutex<int, std::timed_mutex> sut( 42 );
+
+	// Act
+	bool locked = sut.try_lock_for( std::chrono::milliseconds( 100 ) );
+
+	// Assert
+	EXPECT_TRUE( locked );
+
+	// Clean up
+	sut.unlock();
+}
+
+TEST( TestObjectMutex, CanTryLockUntil )
+{
+	// Arrange
+	obj_mutex<int, std::timed_mutex> sut( 42 );
+
+	// Act
+	bool locked = sut.try_lock_until( std::chrono::steady_clock::now() + std::chrono::milliseconds( 100 ) );
+
+	// Assert
+	EXPECT_TRUE( locked );
+
+	// Clean up
+	sut.unlock();
+}
+
+TEST( TestObjectMutex, CanLock_ThenCheckByTryLock_ThenUnlock )
+{
+	// Arrange
+	obj_mutex<int, std::timed_mutex> sut( 42 );
+
+	// Act
+	sut.lock();
+
+	// Assert
+	std::packaged_task<bool()> task( [&sut]() {
+		return sut.try_lock();
+	} );
+	std::future<bool>          future = task.get_future();
+	std::thread                t( std::move( task ) );
+	t.detach();
+	bool ret = future.get();
+
+	EXPECT_FALSE( ret );
+
+	// Clean up
+	sut.unlock();
+}
+
+TEST( TestObjectMutex, CanLockShared )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex> om( 42 );
+
+	// Act
+	om.lock_shared();
+
+	// Assert
+	std::packaged_task<bool()> task( [&om]() {
+		obj_unique_lock lock( om, std::try_to_lock );
+		return lock.owns_lock();
+	} );
+	std::future<bool>          future = task.get_future();
+	std::thread                t( std::move( task ) );
+	t.detach();
+	bool ret = future.get();
+	EXPECT_FALSE( ret );
+
+	// Clean up
+	om.unlock_shared();
+}
+
+TEST( TestObjectMutex, CanTryLockShared_ThenLockShared )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex> om( 42 );
+
+	// Act
+	bool locked = om.try_lock_shared();
+
+	// Assert
+	EXPECT_TRUE( locked );
+
+	// Clean up
+	om.unlock_shared();
+}
+
+TEST( TestObjectMutex, CanTryLockShared_ThenNotLockShared )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex> om( 42 );
+	om.lock();
+
+	// Act
+	std::packaged_task<bool()> task( [&om]() {
+		return om.try_lock_shared();
+	} );
+	std::future<bool>          future = task.get_future();
+	std::thread                t( std::move( task ) );
+	t.detach();
+	bool ret = future.get();
+
+	// Assert
+	EXPECT_FALSE( ret );
+
+	// Clean up
+	om.unlock();
+}
+
+TEST( TestObjectMutex, CanTryLockSharedFor_ThenLockShared )
+{
+	// Arrange
+	obj_mutex<int, std::shared_timed_mutex> om( 42 );
+
+	// Act
+	bool locked = om.try_lock_shared_for( std::chrono::milliseconds( 100 ) );
+
+	// Assert
+	EXPECT_TRUE( locked );
+
+	// Clean up
+	om.unlock_shared();
+}
+
+TEST( TestObjectMutex, CanTryLockSharedFor_ThenNotLockShared )
+{
+	// Arrange
+	obj_mutex<int, std::shared_timed_mutex> om( 42 );
+	om.lock();
+
+	// Act
+	std::packaged_task<bool()> task( [&om]() {
+		return om.try_lock_shared_for( std::chrono::milliseconds( 1 ) );
+	} );
+	std::future<bool>          future = task.get_future();
+	std::thread                t( std::move( task ) );
+	t.detach();
+	bool ret = future.get();
+
+	// Assert
+	EXPECT_FALSE( ret );
+
+	// Clean up
+	om.unlock();
+}
+
+TEST( TestObjectMutex, CanTryLockSharedUntil_ThenLockShared )
+{
+	// Arrange
+	obj_mutex<int, std::shared_timed_mutex> om( 42 );
+
+	// Act
+	bool locked = om.try_lock_shared_until( std::chrono::steady_clock::now() + std::chrono::milliseconds( 100 ) );
+
+	// Assert
+	EXPECT_TRUE( locked );
+
+	// Clean up
+	om.unlock_shared();
+}
+
+TEST( TestObjectMutex, CanTryLockSharedUntil_ThenNotLockShared )
+{
+	// Arrange
+	obj_mutex<int, std::shared_timed_mutex> om( 42 );
+	om.lock();
+
+	// Act
+	std::packaged_task<bool()> task( [&om]() {
+		return om.try_lock_shared_until( std::chrono::steady_clock::now() + std::chrono::milliseconds( 1 ) );
+	} );
+	std::future<bool>          future = task.get_future();
+	std::thread                t( std::move( task ) );
+	t.detach();
+	bool ret = future.get();
+
+	// Assert
+	EXPECT_FALSE( ret );
+
+	// Clean up
+	om.unlock();
+}
+
+TEST( TestObjectMutex, CanScopedLockPattern1 )
+{
+	// Arrange
+	obj_mutex<int> om( 42 );
+
+	// Act
+	obj_lock_guard sut( om );
+
+	// Assert
+	EXPECT_EQ( sut.ref(), 42 );
+	EXPECT_EQ( *sut, 42 );
+	EXPECT_EQ( static_cast<const obj_lock_guard<obj_mutex<int>>&>( sut ).ref(), 42 );
+	EXPECT_EQ( *static_cast<const obj_lock_guard<obj_mutex<int>>&>( sut ), 42 );
+}
+
+TEST( TestObjectMutex, CanScopedLockPattern2 )
+{
+	// Arrange
+	struct test_t {
+		int value;
+		test_t( int v )
+		  : value( v ) {}
+	};
+	obj_mutex<test_t> om( 42 );
+
+	// Act
+	obj_lock_guard sut( om );
+
+	// Assert
+	EXPECT_EQ( sut.ref().value, 42 );
+	EXPECT_EQ( ( *sut ).value, 42 );
+	EXPECT_EQ( sut->value, 42 );
+	EXPECT_EQ( static_cast<const obj_lock_guard<obj_mutex<test_t>>&>( sut ).ref().value, 42 );
+	EXPECT_EQ( ( *static_cast<const obj_lock_guard<obj_mutex<test_t>>&>( sut ) ).value, 42 );
+	EXPECT_EQ( static_cast<const obj_lock_guard<obj_mutex<test_t>>&>( sut )->value, 42 );
+}
+
+TEST( TestObjectMutex, CanCopyConstruct )
+{
+	// Arrange
+	obj_mutex<int> src( 42 );
+
+	// Act
+	obj_mutex<int> sut( src );
+
+	// Assert
+	obj_lock_guard lock( sut );
+	EXPECT_EQ( lock.ref(), 42 );
+}
+
+TEST( TestObjectMutex, CanMoveConstruct )
+{
+	// Arrange
+	obj_mutex<std::unique_ptr<int>> src( std::make_unique<int>( 42 ) );
+
+	// Act
+	obj_mutex<std::unique_ptr<int>> sut( std::move( src ) );
+
+	// Assert
+	obj_lock_guard lock( sut );
+	EXPECT_EQ( *( lock.ref() ), 42 );
+}
+
+TEST( TestObjectMutex, CanCopyAssign )
+{
+	// Arrange
+	obj_mutex<int> src( 42 );
+	obj_mutex<int> sut( 0 );
+
+	// Act
+	sut = src;
+
+	// Assert
+	obj_lock_guard<obj_mutex<int>> lock( sut );
+	EXPECT_EQ( lock.ref(), 42 );
+}
+
+TEST( TestObjectMutex, CanCopyConvertByConstructor )
+{
+	// Arrange
+	obj_mutex<int> src( 42 );
+
+	// Act
+	obj_mutex<double> sut( src );
+
+	// Assert
+	obj_lock_guard lock( sut );
+	EXPECT_EQ( lock.ref(), 42.0 );
+}
+
+TEST( TestObjectMutex, CanMoveConvertByConstructor )
+{
+	// Arrange
+	obj_mutex<int> src( 42 );
+
+	// Act
+	obj_mutex<double> sut( std::move( src ) );
+
+	// Assert
+	obj_lock_guard lock( sut );
+	EXPECT_EQ( lock.ref(), 42.0 );
+}
+
+TEST( TestObjectMutex, CanCopyConvertByAssing )
+{
+	// Arrange
+	obj_mutex<int>    src( 42 );
+	obj_mutex<double> sut( 0.0 );
+
+	// Act
+	sut = src;
+
+	// Assert
+	obj_lock_guard<obj_mutex<double>> lock( sut );
+	EXPECT_EQ( lock.ref(), 42.0 );
+}
+
+TEST( TestObjectMutex, CanMoveConvertByAssing )
+{
+	// Arrange
+	obj_mutex<int>    src( 42 );
+	obj_mutex<double> sut( 0.0 );
+
+	// Act
+	sut = std::move( src );
+
+	// Assert
+	obj_lock_guard<obj_mutex<double>> lock( sut );
+	EXPECT_EQ( lock.ref(), 42.0 );
+}
+
+TEST( TestObjectMutex, CanMoveAssign )
+{
+	// Arrange
+	obj_mutex<std::unique_ptr<int>> src( std::make_unique<int>( 42 ) );
+	obj_mutex<std::unique_ptr<int>> sut( std::make_unique<int>( 0 ) );
+
+	// Act
+	sut = std::move( src );
+
+	// Assert
+	obj_lock_guard lock( sut );
+	EXPECT_EQ( *( lock.ref() ), 42 );
+}
+
+// ========================================================
+
+TEST( TestObjUniqueLock, CanConstruct )
+{
+	// Arrange
+	struct test_t {
+		int value;
+		test_t( int v )
+		  : value( v ) {}
+	};
+	obj_mutex<test_t> om( 42 );
+
+	// Act
+	obj_unique_lock sut( om );
+
+	// Assert
+	EXPECT_EQ( sut.ref().value, 42 );
+	EXPECT_EQ( ( *sut ).value, 42 );
+	EXPECT_EQ( sut->value, 42 );
+	EXPECT_EQ( static_cast<const obj_unique_lock<obj_mutex<test_t>>&>( sut ).ref().value, 42 );
+	EXPECT_EQ( ( *static_cast<const obj_unique_lock<obj_mutex<test_t>>&>( sut ) ).value, 42 );
+	EXPECT_EQ( static_cast<const obj_unique_lock<obj_mutex<test_t>>&>( sut )->value, 42 );
+}
+
+TEST( TestObjUniqueLock, CanConstructWithDeferLock )
+{
+	// Arrange
+	obj_mutex<int> om( 42 );
+
+	// Act
+	obj_unique_lock sut( om, std::defer_lock );
+
+	// Assert
+	EXPECT_FALSE( sut.owns_lock() );
+	EXPECT_ANY_THROW( sut.ref() );
+	sut.lock();
+	EXPECT_TRUE( sut.owns_lock() );
+	EXPECT_EQ( sut.ref(), 42 );
+}
+
+TEST( TestObjUniqueLock, CanConstructkWithTryToLock_ThenLocked )
+{
+	// Arrange
+	obj_mutex<int> om( 42 );
+
+	// Act
+	obj_unique_lock sut( om, std::try_to_lock );
+
+	// Assert
+	EXPECT_TRUE( sut.owns_lock() );
+	EXPECT_EQ( sut.ref(), 42 );
+}
+
+TEST( TestObjUniqueLock, CanConstructkWithTryToLock_ThenNotLocked )
+{
+	// Arrange
+	obj_mutex<int>  om( 42 );
+	obj_unique_lock lock( om, std::try_to_lock );
+	EXPECT_TRUE( lock.owns_lock() );
+
+	// Act
+	obj_unique_lock sut( om, std::try_to_lock );
+
+	// Assert
+	EXPECT_FALSE( sut.owns_lock() );
+}
+
+TEST( TestObjUniqueLock, CanConstructkWithTryToLockFor_ThenLocked )
+{
+	// Arrange
+	obj_mutex<int, std::timed_mutex> om( 42 );
+	obj_unique_lock                  lock( om, std::defer_lock );
+	EXPECT_FALSE( lock.owns_lock() );
+
+	// Act
+	bool ret = lock.try_lock_for( std::chrono::milliseconds( 100 ) );
+
+	// Assert
+	EXPECT_TRUE( ret );
+	EXPECT_EQ( lock.ref(), 42 );
+}
+
+TEST( TestObjUniqueLock, CanConstructWithTryToLockFor_ThenNotLocked )
+{
+	// Arrange
+	obj_mutex<int, std::timed_mutex> om( 42 );
+	obj_unique_lock                  lock( om );
+	EXPECT_TRUE( lock.owns_lock() );
+	std::packaged_task<bool()> task( [&om]() {
+		obj_unique_lock lock( om, std::defer_lock );
+		return lock.try_lock_for( std::chrono::milliseconds( 1 ) );
+	} );
+	std::future<bool>          future = task.get_future();
+
+	// Act
+	std::thread t( std::move( task ) );
+	t.detach();
+
+	// Assert
+	bool ret = future.get();
+	EXPECT_FALSE( ret );
+}
+
+TEST( TestObjUniqueLock, CanConstructWithAdoptLock )
+{
+	// Arrange
+	obj_mutex<int> om( 42 );
+	om.lock();   // lock the mutex before adopting
+
+	// Act
+	obj_unique_lock sut( om, std::adopt_lock );
+
+	// Assert
+	EXPECT_TRUE( sut.owns_lock() );
+	EXPECT_EQ( sut.ref(), 42 );
+}
+
+TEST( TestObjUniqueLock, CanMoveConstruct )
+{
+	// Arrange
+	obj_mutex<int>  om( 42 );
+	obj_unique_lock src( om );
+
+	// Act
+	obj_unique_lock sut( std::move( src ) );
+
+	// Assert
+	EXPECT_EQ( sut.ref(), 42 );
+	EXPECT_FALSE( src.owns_lock() );   // src should not own the lock anymore
+}
+
+TEST( TestObjUniqueLock, CanMoveAssign )
+{
+	// Arrange
+	obj_mutex<int>                  om( 42 );
+	obj_unique_lock                 src( om );
+	obj_unique_lock<obj_mutex<int>> sut;
+
+	// Act
+	sut = std::move( src );
+
+	// Assert
+	EXPECT_EQ( sut.ref(), 42 );
+	EXPECT_FALSE( src.owns_lock() );   // src should not own the lock anymore
+}
+
+// ========================================================
+
+TEST( TestObjSharedLock, CanConstruct )
+{
+	// Arrange
+	struct test_t {
+		int value;
+		test_t( int v )
+		  : value( v ) {}
+	};
+	obj_mutex<test_t, std::shared_mutex> om( 42 );
+
+	// Act
+	obj_shared_lock sut( om );
+
+	// Assert
+	EXPECT_EQ( sut.ref().value, 42 );
+	EXPECT_EQ( ( *sut ).value, 42 );
+	EXPECT_EQ( sut->value, 42 );
+}
+
+TEST( TestObjSharedLock, CanMoveConstruct )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex> om( 42 );
+	obj_shared_lock                   src( om );
+
+	// Act
+	obj_shared_lock sut( std::move( src ) );
+
+	// Assert
+	EXPECT_EQ( sut.ref(), 42 );
+	EXPECT_FALSE( src.owns_lock() );   // src should not own the lock anymore
+}
+
+TEST( TestObjSharedLock, CanMoveAssign )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex>                  om( 42 );
+	obj_shared_lock                                    src( om );
+	obj_shared_lock<obj_mutex<int, std::shared_mutex>> sut;
+
+	// Act
+	sut = std::move( src );
+
+	// Assert
+	EXPECT_EQ( sut.ref(), 42 );
+	EXPECT_FALSE( src.owns_lock() );   // src should not own the lock anymore
+}
+
+TEST( TestObjSharedLock, CanConstructWithDeferLock )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex> om( 42 );
+
+	// Act
+	obj_shared_lock sut( om, std::defer_lock );
+
+	// Assert
+	EXPECT_FALSE( sut.owns_lock() );
+	EXPECT_ANY_THROW( sut.ref() );
+	sut.lock();
+	EXPECT_TRUE( sut.owns_lock() );
+	EXPECT_EQ( sut.ref(), 42 );
+}
+
+TEST( TestObjSharedLock, CanConstructkWithTryToLock_ThenLocked )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex> om( 42 );
+
+	// Act
+	obj_shared_lock sut( om, std::try_to_lock );
+
+	// Assert
+	EXPECT_TRUE( sut.owns_lock() );
+	EXPECT_EQ( sut.ref(), 42 );
+}
+
+TEST( TestObjSharedLock, CanConstructkWithTryToLock_ThenNotLocked )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex> om( 42 );
+	obj_unique_lock                   writer_lock( om );
+	EXPECT_TRUE( writer_lock.owns_lock() );
+
+	// Act
+	std::packaged_task<bool()> task( [&om]() {
+		obj_shared_lock sut( om, std::try_to_lock );
+		return sut.owns_lock();
+	} );
+	std::future<bool>          future = task.get_future();
+	std::thread                t( std::move( task ) );
+	t.detach();
+
+	// Assert
+	bool ret = future.get();
+	EXPECT_FALSE( ret );
+}
+
+TEST( TestObjSharedLock, CanConstructkWithAdoptLock )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex> om( 42 );
+	om.lock_shared();   // lock the mutex before adopting
+
+	// Act
+	obj_shared_lock sut( om, std::adopt_lock );
+
+	// Assert
+	EXPECT_TRUE( sut.owns_lock() );
+	EXPECT_EQ( sut.ref(), 42 );
+}
+
+TEST( TestObjSharedLock, CanLock )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex> om( 42 );
+	obj_shared_lock                   sut( om, std::defer_lock );
+	EXPECT_FALSE( sut.owns_lock() );
+
+	// Act
+	sut.lock();
+
+	// Assert
+	EXPECT_TRUE( sut.owns_lock() );
+	EXPECT_EQ( sut.ref(), 42 );
+
+	// Clean up
+	sut.unlock();
+}
+
+TEST( TestObjSharedLock, CanTryLock )
+{
+	// Arrange
+	obj_mutex<int, std::shared_mutex> om( 42 );
+	obj_shared_lock                   sut( om, std::defer_lock );
+	EXPECT_FALSE( sut.owns_lock() );
+
+	// Act
+	bool locked = sut.try_lock();
+
+	// Assert
+	EXPECT_TRUE( locked );
+	EXPECT_EQ( sut.ref(), 42 );
+
+	// Clean up
+	sut.unlock();
+}
+
+TEST( TestObjSharedLock, CanTryLockFor_ThenLocked )
+{
+	// Arrange
+	obj_mutex<int, std::shared_timed_mutex> om( 42 );
+	obj_shared_lock                         sut( om, std::defer_lock );
+	EXPECT_FALSE( sut.owns_lock() );
+
+	// Act
+	bool locked = sut.try_lock_for( std::chrono::milliseconds( 100 ) );
+
+	// Assert
+	EXPECT_TRUE( locked );
+	EXPECT_EQ( sut.ref(), 42 );
+
+	// Clean up
+	sut.unlock();
+}
+
+TEST( TestObjSharedLock, CanTryLockFor_ThenNotLocked )
+{
+	// Arrange
+	obj_mutex<int, std::shared_timed_mutex> om( 42 );
+	obj_unique_lock                         sut( om );
+	EXPECT_TRUE( sut.owns_lock() );
+
+	// Act
+	std::packaged_task<bool()> task( [&om]() {
+		obj_shared_lock lock( om, std::defer_lock );
+		return lock.try_lock_for( std::chrono::milliseconds( 1 ) );
+	} );
+	std::future<bool>          future = task.get_future();
+	std::thread                t( std::move( task ) );
+	t.detach();
+
+	// Assert
+	bool ret = future.get();
+	EXPECT_FALSE( ret );
+}
+
+TEST( TestObjSharedLock, CanTryLockUntil_ThenLocked )
+{
+	// Arrange
+	obj_mutex<int, std::shared_timed_mutex> om( 42 );
+	obj_shared_lock                         sut( om, std::defer_lock );
+	EXPECT_FALSE( sut.owns_lock() );
+
+	// Act
+	bool locked = sut.try_lock_until( std::chrono::steady_clock::now() + std::chrono::milliseconds( 100 ) );
+
+	// Assert
+	EXPECT_TRUE( locked );
+	EXPECT_EQ( sut.ref(), 42 );
+
+	// Clean up
+	sut.unlock();
+}
+
+TEST( TestObjSharedLock, CanTryLockUntil_ThenNotLocked )
+{
+	// Arrange
+	obj_mutex<int, std::shared_timed_mutex> om( 42 );
+	obj_unique_lock                         sut( om );
+	EXPECT_TRUE( sut.owns_lock() );
+
+	// Act
+	std::packaged_task<bool()> task( [&om]() {
+		obj_shared_lock lock( om, std::defer_lock );
+		return lock.try_lock_until( std::chrono::steady_clock::now() + std::chrono::milliseconds( 1 ) );
+	} );
+	std::future<bool>          future = task.get_future();
+	std::thread                t( std::move( task ) );
+	t.detach();
+
+	// Assert
+	bool ret = future.get();
+	EXPECT_FALSE( ret );
+
+	// Clean up
+	sut.unlock();
 }

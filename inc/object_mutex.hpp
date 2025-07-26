@@ -7,434 +7,587 @@
  *
  * @copyright Copyright (c) 2023, PFA03027@nifty.com
  *
+ * @pre C++17 is required by std::scope_lock. If you use on C++11/C++14, alternative implementation of scope_lock is required with using std::lock()
  */
 
 #ifndef OBJECT_MUTEX_HPP_
 #define OBJECT_MUTEX_HPP_
 
-#include <memory>
+#include <chrono>
 #include <mutex>
+#include <shared_mutex>
 #include <stdexcept>
+#include <type_traits>
 
-template <typename MTX_T = std::mutex>
-struct data_carrier_base_mtx {
-	virtual ~data_carrier_base_mtx() {}
-
-	MTX_T mtx_;
-};
-
-template <typename T, typename MTX_T = std::mutex>
-struct data_carrier_non_class : public data_carrier_base_mtx<MTX_T> {
-	template <typename... Args>
-	data_carrier_non_class( Args&&... args )
-	  : data_carrier_base_mtx<MTX_T>()
-	  , data_( std::forward<Args>( args )... )
-	{
-	}
-
-	T data_;
-
-	template <typename U, typename MTX_U>
-	friend class obj_mutex;
-};
-
-template <typename T, typename MTX_T = std::mutex>
-struct data_carrier_class : public data_carrier_base_mtx<MTX_T>, public T {
-	template <typename... Args>
-	data_carrier_class( Args&&... args )
-	  : data_carrier_base_mtx<MTX_T>()
-	  , T( std::forward<Args>( args )... )
-	{
-	}
-
-	template <typename U, typename MTX_U>
-	friend class obj_mutex;
-};
-
+/**
+ * @brief A wrapper class that exclusively controls access to class instances
+ *
+ * @tparam T type of object to be controlled exclusively
+ * @tparam MTX_T type of mutex to be used for exclusive control
+ */
 template <typename T, typename MTX_T = std::mutex>
 class obj_mutex {
 public:
-	class single_accessor {
-	public:
-		/**
-		 * @brief get a reference of a target object
-		 *
-		 * This member function is defined in case that T(=U) is base class of ACTUAL_T or same to ACTUAL_T.
-		 *
-		 * @return T&
-		 */
-		T& ref( void )
-		{
-			if ( sp_data_ == nullptr ) {
-				throw std::logic_error( "single_accessor is empty. has been moved ?" );
-			}
-			return ref_to_data_;
-		}
+	using value_type = T;
+	using mutex_type = MTX_T;
 
-		/**
-		 * @brief move constructor of a new single accessor object
-		 *
-		 * @param orig
-		 */
-		single_accessor( single_accessor&& orig )
-		  : sp_data_( std::move( orig.sp_data_ ) )
-		  , lk_( std::move( orig.lk_ ) )
-		  , ref_to_data_( orig.ref_to_data_ )
-		{
-		}
+	struct is_callable_try_lock_for_impl {
+		template <typename U, typename Rep, typename Period>
+		static auto test( U* u, const std::chrono::duration<Rep, Period>& rel_time )
+			-> decltype( u->try_lock_for( rel_time ), std::true_type() );
+		static std::false_type test( ... );
+	};
+	template <class MTX, class Rep, class Period>
+	struct is_callable_try_lock_for
+	  : decltype( is_callable_try_lock_for_impl::test( std::declval<MTX*>(), std::declval<const std::chrono::duration<Rep, Period>&>() ) ) {};
 
-		/**
-		 * @brief move assignmment
-		 *
-		 * @param orig
-		 * @return single_accessor&
-		 */
-		single_accessor& operator=( single_accessor&& orig )
-		{
-			lk_.unlock();                           // 「unlock -> メモリ参照先の開放」という順番となるようにする。
-			lk_          = std::move( orig.lk_ );   // orig.lk_は、すでにlock済み
-			sp_data_     = std::move( orig.sp_data_ );
-			ref_to_data_ = orig.ref_to_data_;
+	struct is_callable_try_lock_until_impl {
+		template <typename U, typename Clock, typename Duration>
+		static auto test( U* u, const std::chrono::time_point<Clock, Duration>& abs_time )
+			-> decltype( u->try_lock_until( abs_time ), std::true_type() );
+		static std::false_type test( ... );
+	};
+	template <class MTX, class Clock, class Duration>
+	struct is_callable_try_lock_until
+	  : decltype( is_callable_try_lock_until_impl::test( std::declval<MTX*>(), std::declval<const std::chrono::time_point<Clock, Duration>&>() ) ) {};
+
+	struct is_callable_native_handle_impl {
+		template <typename U>
+		static auto test( U* u )
+			-> decltype( u->native_handle(), std::true_type() );
+		static std::false_type test( ... );
+	};
+	template <class MTX>
+	struct is_callable_native_handle
+	  : decltype( is_callable_native_handle_impl::test( std::declval<MTX*>() ) ) {};
+
+	struct is_callable_lock_shared_impl {
+		template <typename U>
+		static auto test( U* u )
+			-> decltype( u->lock_shared(), std::true_type() );
+		static std::false_type test( ... );
+	};
+	template <class MTX>
+	struct is_callable_lock_shared
+	  : decltype( is_callable_lock_shared_impl::test( std::declval<MTX*>() ) ) {};
+
+	struct is_callable_try_lock_shared_for_impl {
+		template <typename U, typename Rep, typename Period>
+		static auto test( U* u, const std::chrono::duration<Rep, Period>& rel_time )
+			-> decltype( u->try_lock_shared_for( rel_time ), std::true_type() );
+		static std::false_type test( ... );
+	};
+	template <class MTX, class Rep, class Period>
+	struct is_callable_try_lock_shared_for
+	  : decltype( is_callable_try_lock_shared_for_impl::test( std::declval<MTX*>(), std::declval<const std::chrono::duration<Rep, Period>&>() ) ) {};
+
+	struct is_callable_try_lock_shared_until_impl {
+		template <typename U, typename Clock, typename Duration>
+		static auto test( U* u, const std::chrono::time_point<Clock, Duration>& abs_time )
+			-> decltype( u->try_lock_shared_until( abs_time ), std::true_type() );
+		static std::false_type test( ... );
+	};
+	template <class MTX, class Clock, class Duration>
+	struct is_callable_try_lock_shared_until
+	  : decltype( is_callable_try_lock_shared_until_impl::test( std::declval<MTX*>(), std::declval<const std::chrono::time_point<Clock, Duration>&>() ) ) {};
+
+	~obj_mutex()      = default;
+	obj_mutex( void ) = default;
+
+	/**
+	 * @brief Construct a new obj mutex object
+	 *
+	 * @pre src must not be locked.
+	 * @param src
+	 */
+	obj_mutex( const obj_mutex& src )
+	  : mtx_()
+	{
+		std::lock_guard<MTX_T> lock( src.mtx_ );
+		v_ = src.v_;
+	}
+
+	/**
+	 * @brief Assign a new value to this object mutex
+	 *
+	 * @pre this and src must not be locked.
+	 *
+	 * @param src
+	 * @return obj_mutex&
+	 */
+	obj_mutex& operator=( const obj_mutex& src )
+	{
+		if ( this == &src ) {
 			return *this;
 		}
-
-		/**
-		 * @brief check the validity
-		 *
-		 * @return true this has a valid object
-		 * @return false this does not have any valid object. e.g. this will happen after move
-		 */
-		bool valid( void ) const
-		{
-			return ( sp_data_ != nullptr );
-		}
-
-		~single_accessor()
-		{
-			// メンバ変数定義と逆順にデストラクタが起動されるため、
-			// 自動的に、unlock -> メモリ参照先の開放 という不正アクセスとはならない処理順になる。
-		}
-
-	private:
-		single_accessor( std::unique_lock<MTX_T> lk_arg, std::shared_ptr<data_carrier_base_mtx<MTX_T>> sp_data_arg, T& ref_to_data_arg )
-		  : sp_data_( std::move( sp_data_arg ) )
-		  , lk_( std::move( lk_arg ) )
-		  , ref_to_data_( ref_to_data_arg )
-		{
-		}
-
-		single_accessor( const single_accessor& )            = delete;
-		single_accessor& operator=( const single_accessor& ) = delete;
-
-		std::shared_ptr<data_carrier_base_mtx<MTX_T>> sp_data_;
-		std::unique_lock<MTX_T>                       lk_;
-		T&                                            ref_to_data_;
-
-		template <typename U, typename MTX_U>
-		friend class obj_mutex;
-	};
-
-	//////////////////////
-	/**
-	 * @brief Default constructor of a new obj mutex object
-	 *
-	 * If T has a default constructor, this default constructor is defined.
-	 *
-	 * @tparam U
-	 */
-	template <typename U = T, typename std::enable_if<std::is_default_constructible<U>::value && std::is_class<U>::value>::type* = nullptr>
-	obj_mutex( void )
-	  : sp_data_( std::make_shared<data_carrier_class<U, MTX_T>>() )
-	{
-	}
-
-	/**
-	 * @brief Default constructor of a new obj mutex object
-	 *
-	 * If T has a default constructor, this default constructor is defined.
-	 *
-	 * @tparam U
-	 */
-	template <typename U = T, typename std::enable_if<std::is_default_constructible<U>::value && !std::is_class<U>::value>::type* = nullptr>
-	obj_mutex( void )
-	  : sp_data_( std::make_shared<data_carrier_non_class<U, MTX_T>>() )
-	{
-	}
-
-	/**
-	 * @brief Move constructor of a new obj mutex object with up-cast or no cast
-	 *
-	 * @tparam U original type of move
-	 * @tparam std::enable_if<std::is_base_of<T, U>::value>::type
-	 * @param orig
-	 */
-	template <typename U, typename std::enable_if<std::is_base_of<T, U>::value || std::is_same<T, U>::value>::type* = nullptr>
-	obj_mutex( obj_mutex<U, MTX_T>&& orig )
-	  : sp_data_( std::move( orig.sp_data_ ) )
-	{
-	}
-
-	/**
-	 * @brief Move constructor of a new obj mutex object with down cast
-	 *
-	 * @tparam U original type of move
-	 * @tparam std::enable_if<std::is_base_of<T, U>::value>::type
-	 * @param orig
-	 *
-	 * @exception std::bad_cast fail to down-cast from U to T. This means T is not derived class of U
-	 */
-	template <typename U = T, typename std::enable_if<std::is_base_of<U, T>::value && !std::is_same<T, U>::value>::type* = nullptr>
-	obj_mutex( obj_mutex<U, MTX_T>&& orig )
-	  : sp_data_( std::move( orig.sp_data_ ) )
-	{
-		T* p_T_tmp = dynamic_cast<T*>( sp_data_.get() );
-		if ( p_T_tmp == nullptr ) {
-			orig.sp_data_ = std::move( sp_data_ );
-			throw std::bad_cast();   // fail to down cast or could not be convertible
-		}
+		std::scoped_lock lock( mtx_, src.mtx_ );
+		v_ = src.v_;
+		return *this;
 	}
 
 	/**
 	 * @brief Construct a new obj mutex object
 	 *
-	 * Construct with using T(headarg, args...)
+	 * @pre src must not be locked.
 	 *
-	 * @tparam HEADArg this is a type of 1st argument, and is not type of obj_mutex<U>
-	 * @tparam Args these are the types of 2nd and more arguments
-	 * @param headarg 1st argument of T's constructor
-	 * @param args 2nd and more arguments of T's constructor
+	 * @param src
 	 */
-	template <typename HEADArg, typename U = T, typename MTX_U = MTX_T, typename... Args,
-	          typename std::enable_if<
-				  !std::is_same<
-					  obj_mutex<U, MTX_U>,
-					  typename std::remove_cv<
-						  typename std::remove_reference<HEADArg>::type>::type>::value &&
-				  std::is_class<U>::value>::type* = nullptr>
-	obj_mutex( HEADArg&& headarg, Args&&... args )
-	  : sp_data_( std::make_shared<data_carrier_class<U, MTX_U>>( std::forward<HEADArg>( headarg ), std::forward<Args>( args )... ) )
+	obj_mutex( obj_mutex&& src )
+	  : mtx_()
 	{
+		std::lock_guard<MTX_T> lock( src.mtx_ );
+		v_ = std::move( src.v_ );
 	}
 
 	/**
-	 * @brief Construct a new obj mutex object
+	 * @brief Assign a new value to this object mutex
 	 *
-	 * Construct with using T(headarg, args...)
+	 * @pre this and src must not be locked.
 	 *
-	 * @tparam HEADArg this is a type of 1st argument, and is not type of obj_mutex<U>
-	 * @tparam Args these are the types of 2nd and more arguments
-	 * @param headarg 1st argument of T's constructor
-	 * @param args 2nd and more arguments of T's constructor
-	 */
-	template <typename HEADArg, typename U = T, typename MTX_U = MTX_T, typename... Args,
-	          typename std::enable_if<
-				  !std::is_same<
-					  obj_mutex<U, MTX_U>,
-					  typename std::remove_cv<
-						  typename std::remove_reference<HEADArg>::type>::type>::value &&
-				  !std::is_class<U>::value>::type* = nullptr>
-	obj_mutex( HEADArg&& headarg, Args&&... args )
-	  : sp_data_( std::make_shared<data_carrier_non_class<U, MTX_U>>( std::forward<HEADArg>( headarg ), std::forward<Args>( args )... ) )
-	{
-	}
-
-	/**
-	 * @brief move assignmment with up-cast or no cast
-	 *
-	 * @param orig
+	 * @param src
 	 * @return obj_mutex&
 	 */
-	template <typename U, typename std::enable_if<std::is_base_of<T, U>::value || std::is_same<T, U>::value>::type* = nullptr>
-	obj_mutex& operator=( obj_mutex<U, MTX_T>&& orig )
+	obj_mutex& operator=( obj_mutex&& src )
 	{
-		sp_data_ = std::move( orig.sp_data_ );
+		if ( this == &src ) {
+			return *this;
+		}
+		std::scoped_lock lock( mtx_, src.mtx_ );
+		v_ = std::move( src.v_ );
 		return *this;
 	}
 
 	/**
-	 * @brief move assignmment
+	 * @brief Construct a new obj mutex object from convertible type
 	 *
-	 * @param orig
-	 * @return obj_mutex&
+	 * @pre src must not be locked.
 	 *
-	 * @exception std::bad_cast fail to down-cast from U to T. This means T is not derived class of U
+	 * @tparam U type of object to be controlled exclusively
+	 * @param src
 	 */
-	template <typename U, typename std::enable_if<std::is_base_of<U, T>::value && !std::is_same<T, U>::value>::type* = nullptr>
-	obj_mutex& operator=( obj_mutex<U, MTX_T>&& orig )
+	template <typename U, typename std::enable_if<std::is_constructible<T, const U&>::value>::type* = nullptr>
+	obj_mutex( const obj_mutex<U, MTX_T>& src )
+	  : mtx_()
 	{
-		T* p_T_tmp = dynamic_cast<T*>( orig.sp_data_.get() );
-		if ( p_T_tmp == nullptr ) {
-			throw std::bad_cast();   // fail to down cast or could not be convertible
-		}
-		sp_data_ = std::move( orig.sp_data_ );
+		std::lock_guard<MTX_T> lock( src.mtx_ );
+		v_ = src.v_;
+	}
+
+	/**
+	 * @brief Assign a new value to this object mutex from convertible type
+	 *
+	 * @pre this and src must not be locked.
+	 *
+	 * @tparam U type of object to be controlled exclusively
+	 * @param src
+	 * @return obj_mutex&
+	 */
+	template <typename U, typename std::enable_if<std::is_convertible<const U, T>::value>::type* = nullptr>
+	obj_mutex& operator=( const obj_mutex<U, MTX_T>& src )
+	{
+		std::scoped_lock lock( mtx_, src.mtx_ );
+		v_ = src.v_;
 		return *this;
 	}
 
 	/**
-	 * @brief check the validity
+	 * @brief Construct a new obj mutex object from convertible type
 	 *
-	 * @return true this has a valid object
-	 * @return false this does not have any valid object. e.g. this will happen after move
+	 * @pre src must not be locked.
+	 *
+	 * @tparam U type of object to be controlled exclusively
+	 * @param src
 	 */
-	bool valid( void ) const
+	template <typename U, typename std::enable_if<std::is_constructible<T, U&&>::value>::type* = nullptr>
+	obj_mutex( obj_mutex<U, MTX_T>&& src )
+	  : mtx_()
 	{
-		return ( sp_data_ != nullptr );
+		std::lock_guard<MTX_T> lock( src.mtx_ );
+		v_ = std::move( src.v_ );
 	}
 
 	/**
-	 * @brief get single accessor object with up-cast
+	 * @brief Assign a new value to this object mutex from convertible type
 	 *
-	 * if this object is not valid( valid() is flase ), this throws std::logic_error
+	 * @pre this and src must not be locked.
 	 *
-	 * @tparam U this U is base type of T
-	 * @return obj_mutex<U, MTX_T>::single_accessor
+	 * @tparam U type of object to be controlled exclusively
+	 * @param src
+	 * @return obj_mutex&
 	 */
-	template <typename U = T>
-	typename obj_mutex<U, MTX_T>::single_accessor lock_get( void )
+	template <typename U, typename std::enable_if<std::is_convertible<U&&, T>::value>::type* = nullptr>
+	obj_mutex& operator=( obj_mutex<U, MTX_T>&& src )
 	{
-		// 型Tの基底クラスUへのアップキャストされたsingle_accessorを得る
-		if ( sp_data_ == nullptr ) {
-			throw std::logic_error( "obj_mutex is empty. has been moved ?" );
-		}
-
-		std::unique_lock<MTX_T> lk_my( sp_data_->mtx_ );
-		return typename obj_mutex<U, MTX_T>::single_accessor( std::move( lk_my ), sp_data_, get_ref<U>() );
-	}
-	template <typename U = T>
-	typename obj_mutex<const U, MTX_T>::single_accessor lock_get( void ) const
-	{
-		// 型Tの基底クラスUへのアップキャストされたsingle_accessorを得る
-		if ( sp_data_ == nullptr ) {
-			throw std::logic_error( "obj_mutex is empty. has been moved ?" );
-		}
-
-		std::unique_lock<MTX_T> lk_my( sp_data_->mtx_ );
-		return typename obj_mutex<const U, MTX_T>::single_accessor( std::move( lk_my ), sp_data_, get_ref<U>() );
+		std::scoped_lock lock( mtx_, src.mtx_ );
+		v_ = std::move( src.v_ );
+		return *this;
 	}
 
 	/**
-	 * @brief make a clone object
+	 * @brief Construct a new obj mutex object from convertible type
 	 *
-	 * there is no exclusive control b/w the cloned object and this object.
-	 *
-	 * @tparam U type that will clone to
-	 * @tparam MTX_U type of mutex
-	 * @return obj_mutex<U, MTX_U> a cloned object
+	 * @tparam U type of object to be controlled exclusively
+	 * @param src
 	 */
-	template <typename U = T, typename MTX_U = MTX_T, typename std::enable_if<std::is_convertible<T, U>::value>::type* = nullptr>
-	obj_mutex<U, MTX_U> clone( void ) const
+	template <typename U, typename std::enable_if<std::is_constructible<T, U>::value>::type* = nullptr>
+	obj_mutex( U&& src )
+	  : mtx_()
+	  , v_( std::forward<U>( src ) )
 	{
-		return obj_mutex<U, MTX_U>( lock_get().ref() );
 	}
 
-	/**
-	 * @brief make a shered clone object
-	 *
-	 * there is the exclusive control b/w the cloned object and this object.
-	 *
-	 * @return obj_mutex  a cloned object that shares a mutex
-	 */
-	template <typename U = T, typename std::enable_if<std::is_same<U, T>::value>::type* = nullptr>
-	obj_mutex<U, MTX_T> shared_clone( void ) const
+	void lock( void )
 	{
-		return obj_mutex<U, MTX_T>( sp_data_ );
+		mtx_.lock();
 	}
 
-	/**
-	 * @brief make a shered clone object
-	 *
-	 * there is the exclusive control b/w the cloned object and this object.
-	 *
-	 * @return obj_mutex  a cloned object that shares a mutex
-	 *
-	 * @exception std::bad_cast fail to down-cast from T/U to U/T. This means U/T is not derived class of T/U
-	 */
-	template <typename U = T, typename std::enable_if<!std::is_same<U, T>::value && ( std::is_base_of<U, T>::value || std::is_base_of<T, U>::value )>::type* = nullptr>
-	obj_mutex<U, MTX_T> shared_clone( void ) const
+	bool try_lock( void )
 	{
-		U* p_U_tmp = dynamic_cast<U*>( sp_data_.get() );
-		if ( p_U_tmp == nullptr ) {
-			throw std::bad_cast();
-		}
-		return obj_mutex<U, MTX_T>( sp_data_ );
+		return mtx_.try_lock();
 	}
 
-	/**
-	 * @brief check this is locked or not
-	 *
-	 * @return true
-	 * @return false
-	 */
-	bool is_locked( void ) const
+	template <class Rep, class Period, typename std::enable_if<is_callable_try_lock_for<mutex_type, Rep, Period>::value>::type* = nullptr>
+	bool try_lock_for( const std::chrono::duration<Rep, Period>& rel_time )
 	{
-		bool ans = sp_data_->mtx_.try_lock();
-		if ( ans ) {
-			sp_data_->mtx_.unlock();
-		}
-		return !ans;
+		return mtx_.try_lock_for( rel_time );
+	}
+
+	template <class Clock, class Duration, typename std::enable_if<is_callable_try_lock_until<mutex_type, Clock, Duration>::value>::type* = nullptr>
+	bool try_lock_until( const std::chrono::time_point<Clock, Duration>& abs_time )
+	{
+		return mtx_.try_lock_until( abs_time );
+	}
+
+	void unlock( void )
+	{
+		mtx_.unlock();
+	}
+
+	template <typename U = MTX_T, typename std::enable_if<is_callable_lock_shared<U>::value>::type* = nullptr>
+	void lock_shared( void )
+	{
+		mtx_.lock_shared();
+	}
+
+	template <typename U = MTX_T, typename std::enable_if<is_callable_lock_shared<U>::value>::type* = nullptr>
+	bool try_lock_shared( void )
+	{
+		return mtx_.try_lock_shared();
+	}
+
+	template <class Rep, class Period, typename std::enable_if<is_callable_try_lock_shared_for<mutex_type, Rep, Period>::value>::type* = nullptr>
+	bool try_lock_shared_for( const std::chrono::duration<Rep, Period>& rel_time )
+	{
+		return mtx_.try_lock_shared_for( rel_time );
+	}
+
+	template <class Clock, class Duration, typename std::enable_if<is_callable_try_lock_shared_until<mutex_type, Clock, Duration>::value>::type* = nullptr>
+	bool try_lock_shared_until( const std::chrono::time_point<Clock, Duration>& abs_time )
+	{
+		return mtx_.try_lock_shared_until( abs_time );
+	}
+
+	template <typename U = MTX_T, typename std::enable_if<is_callable_lock_shared<U>::value>::type* = nullptr>
+	void unlock_shared( void )
+	{
+		mtx_.unlock_shared();
+	}
+
+	template <typename U = MTX_T, typename std::enable_if<is_callable_native_handle<U>::value>::type* = nullptr>
+	auto native_handle( void )
+	{
+		return mtx_.native_handle();
+	}
+
+	mutex_type* mutex( void ) const noexcept
+	{
+		return &mtx_;
 	}
 
 private:
-	obj_mutex( const std::shared_ptr<data_carrier_base_mtx<MTX_T>>& sp_data_arg )
-	  : sp_data_( sp_data_arg )
+	value_type& ref( void ) noexcept
 	{
+		return v_;
+	}
+	const value_type& ref( void ) const noexcept
+	{
+		return v_;
 	}
 
-	// コピーコンストラクタを定義した場合、文脈上、2つの振る舞いが利用者の期待値として存在しうる。
-	// (1)保持している型Tの実体のコピー=複製。いわゆる深いコピー。
-	//    既存のインスタントと異なるオブジェクトが生成される＝排他制御は分離される。
-	// (2)排他制御を行うためのアクセスポイントとしての複製。いわゆる浅いコピー。
-	//
-	// obj_mutexの趣旨として、データ実体はアクセスは、single_accessor経由でアクセスすべきである。
-	// この点を踏まえると、(1)を実装すべきと考えられるが、一方でコードの見た目として(2)のと区別が不明である。
-	// よって、コピーコンストラクタ、copy assignmentは定義しない。
-	// (1)相当の機能は、clone()で提供する。
-	// (2)相当の機能は、shared_clone()で提供する。
-	obj_mutex( const obj_mutex& orig )            = delete;
-	obj_mutex& operator=( const obj_mutex& orig ) = delete;
-
-	template <typename U, typename X = T, typename std::enable_if<std::is_class<X>::value>::type* = nullptr>
-	U& get_ref( void )
-	{
-		return dynamic_cast<U&>( *sp_data_ );
-	}
-
-	template <typename U, typename X = T, typename std::enable_if<std::is_class<X>::value>::type* = nullptr>
-	const U& get_ref( void ) const
-	{
-		return dynamic_cast<U&>( *sp_data_ );
-	}
-
-	template <typename U, typename X = T, typename std::enable_if<!std::is_class<X>::value>::type* = nullptr>
-	U& get_ref( void )
-	{
-		auto sp_tt = std::dynamic_pointer_cast<data_carrier_non_class<T, MTX_T>>( sp_data_ );
-		if ( sp_tt == nullptr ) {
-			throw std::bad_cast();
-			// 自身が保持しているクラス型ではない型Tへのキャストなので、dynamic_castは必ず成功する。
-			// そのため、この例外を発生させるテストコードは書けない。
-			// なお、sp_data_自身は、get_refを呼び出す側で、non nullptrであることが確認済みとなっている前提。
-		}
-		return sp_tt->data_;
-	}
-
-	template <typename U, typename X = T, typename std::enable_if<!std::is_class<X>::value>::type* = nullptr>
-	const U& get_ref( void ) const
-	{
-		auto sp_tt = std::dynamic_pointer_cast<data_carrier_non_class<T, MTX_T>>( sp_data_ );
-		if ( sp_tt == nullptr ) {
-			throw std::bad_cast();
-			// 自身が保持しているクラス型ではない型Tへのキャストなので、dynamic_castは必ず成功する。
-			// そのため、この例外を発生させるテストコードは書けない。
-			// なお、sp_data_自身は、get_refを呼び出す側で、non nullptrであることが確認済みとなっている前提。
-		}
-		return sp_tt->data_;
-	}
-
-	std::shared_ptr<data_carrier_base_mtx<MTX_T>> sp_data_;
+	mutable mutex_type mtx_;   //!< mutex for this object
+	value_type         v_;     //!< value of type T that is controlled exclusively
 
 	template <typename U, typename MTX_U>
 	friend class obj_mutex;
+
+	template <typename OM>
+	friend class obj_lock_guard;
+
+	template <typename OM>
+	friend class obj_unique_lock;
+
+	template <typename OM>
+	friend class obj_shared_lock;
 };
+
+template <typename OM>
+class obj_lock_guard : public std::lock_guard<typename OM::mutex_type> {
+public:
+	using mutex_type       = typename OM::mutex_type;
+	using value_type       = typename OM::value_type;
+	using const_value_type = typename std::add_const<typename OM::value_type>::type;
+
+	~obj_lock_guard( void )                            = default;
+	obj_lock_guard( void )                             = delete;
+	obj_lock_guard( const obj_lock_guard& )            = delete;
+	obj_lock_guard& operator=( const obj_lock_guard& ) = delete;
+	obj_lock_guard( obj_lock_guard&& )                 = delete;
+	obj_lock_guard& operator=( obj_lock_guard&& )      = delete;
+
+	obj_lock_guard( OM& om )
+	  : std::lock_guard<mutex_type>( *om.mutex() )
+	  , p_om_( &om )
+	{
+	}
+
+	value_type& ref( void ) noexcept
+	{
+		return p_om_->ref();
+	}
+	const_value_type& ref( void ) const noexcept
+	{
+		return p_om_->ref();
+	}
+
+	value_type& operator*( void ) noexcept
+	{
+		return p_om_->ref();
+	}
+	const_value_type& operator*( void ) const noexcept
+	{
+		return p_om_->ref();
+	}
+	value_type* operator->( void ) noexcept
+	{
+		return &p_om_->ref();
+	}
+	const_value_type* operator->( void ) const noexcept
+	{
+		return &p_om_->ref();
+	}
+
+private:
+	OM* p_om_;   //!< pointer to the object mutex being locked
+};
+
+#if __cpp_deduction_guides >= 201611L
+// Deduction guide for obj_lock_guard
+template <typename OM>
+obj_lock_guard( OM& ) -> obj_lock_guard<OM>;
+#endif
+
+template <typename OM>
+class obj_unique_lock : public std::unique_lock<typename OM::mutex_type> {
+public:
+	using mutex_type       = typename OM::mutex_type;
+	using value_type       = typename OM::value_type;
+	using const_value_type = typename std::add_const<typename OM::value_type>::type;
+
+	~obj_unique_lock( void ) = default;
+	obj_unique_lock( void )
+	  : std::unique_lock<mutex_type>()
+	  , p_om_( nullptr )
+	{
+	}
+	obj_unique_lock( const obj_unique_lock& )            = delete;
+	obj_unique_lock& operator=( const obj_unique_lock& ) = delete;
+	obj_unique_lock( obj_unique_lock&& src )
+	  : std::unique_lock<mutex_type>( std::move( src ) )
+	  , p_om_( src.p_om_ )
+	{
+		src.p_om_ = nullptr;   // transfer ownership
+	}
+	obj_unique_lock& operator=( obj_unique_lock&& src )
+	{
+		if ( this == &src ) {
+			return *this;
+		}
+
+		obj_unique_lock( std::move( src ) ).swap( *this );
+		return *this;
+	}
+	void swap( obj_unique_lock& other ) noexcept
+	{
+		std::unique_lock<mutex_type>::swap( other );
+		std::swap( p_om_, other.p_om_ );
+	}
+
+	obj_unique_lock( OM& om )
+	  : std::unique_lock<mutex_type>( *om.mutex() )
+	  , p_om_( &om )
+	{
+	}
+	obj_unique_lock( OM& om, std::defer_lock_t )
+	  : std::unique_lock<mutex_type>( *om.mutex(), std::defer_lock )
+	  , p_om_( &om )
+	{
+	}
+	obj_unique_lock( OM& om, std::try_to_lock_t )
+	  : std::unique_lock<mutex_type>( *om.mutex(), std::try_to_lock )
+	  , p_om_( &om )
+	{
+	}
+	obj_unique_lock( OM& om, std::adopt_lock_t )
+	  : std::unique_lock<mutex_type>( *om.mutex(), std::adopt_lock )
+	  , p_om_( &om )
+	{
+	}
+
+	value_type& ref( void )
+	{
+		if ( !this->owns_lock() ) {
+			throw std::runtime_error( "Cannot access ref() without owning the lock." );
+		}
+		if ( p_om_ == nullptr ) {
+			throw std::runtime_error( "Cannot access ref() without object." );
+		}
+		return p_om_->ref();
+	}
+
+	const_value_type& ref( void ) const
+	{
+		if ( !this->owns_lock() ) {
+			throw std::runtime_error( "Cannot access ref() without owning the lock." );
+		}
+		if ( p_om_ == nullptr ) {
+			throw std::runtime_error( "Cannot access ref() without object." );
+		}
+		return p_om_->ref();
+	}
+
+	value_type& operator*( void ) noexcept
+	{
+		return p_om_->ref();
+	}
+	const_value_type& operator*( void ) const noexcept
+	{
+		return p_om_->ref();
+	}
+	value_type* operator->( void ) noexcept
+	{
+		return &p_om_->ref();
+	}
+	const_value_type* operator->( void ) const noexcept
+	{
+		return &p_om_->ref();
+	}
+
+private:
+	OM* p_om_;   //!< pointer to the object mutex being locked
+};
+
+#if __cpp_deduction_guides >= 201611L
+// Deduction guide for obj_lock_guard
+template <typename OM>
+obj_unique_lock( OM& ) -> obj_unique_lock<OM>;
+template <typename OM>
+obj_unique_lock( OM&, std::defer_lock_t ) -> obj_unique_lock<OM>;
+template <typename OM>
+obj_unique_lock( OM&, std::try_to_lock_t ) -> obj_unique_lock<OM>;
+template <typename OM>
+obj_unique_lock( OM&, std::adopt_lock_t ) -> obj_unique_lock<OM>;
+#endif
+
+template <typename OM>
+class obj_shared_lock : public std::shared_lock<typename OM::mutex_type> {
+public:
+	using mutex_type       = typename OM::mutex_type;
+	using const_value_type = typename std::add_const<typename OM::value_type>::type;
+
+	~obj_shared_lock( void ) = default;
+	obj_shared_lock( void )
+	  : std::shared_lock<mutex_type>()
+	  , p_om_( nullptr )
+	{
+	}
+	obj_shared_lock( const obj_shared_lock& )            = delete;
+	obj_shared_lock& operator=( const obj_shared_lock& ) = delete;
+	obj_shared_lock( obj_shared_lock&& src )
+	  : std::shared_lock<mutex_type>( std::move( src ) )
+	  , p_om_( src.p_om_ )
+	{
+		src.p_om_ = nullptr;   // transfer ownership
+	}
+	obj_shared_lock& operator=( obj_shared_lock&& src )
+	{
+		if ( this == &src ) {
+			return *this;
+		}
+		obj_shared_lock( std::move( src ) ).swap( *this );
+		return *this;
+	}
+
+	obj_shared_lock( OM& om )
+	  : std::shared_lock<mutex_type>( *om.mutex() )
+	  , p_om_( &om )
+	{
+	}
+	obj_shared_lock( OM& om, std::defer_lock_t )
+	  : std::shared_lock<mutex_type>( *om.mutex(), std::defer_lock )
+	  , p_om_( &om )
+	{
+	}
+	obj_shared_lock( OM& om, std::try_to_lock_t )
+	  : std::shared_lock<mutex_type>( *om.mutex(), std::try_to_lock )
+	  , p_om_( &om )
+	{
+	}
+	obj_shared_lock( OM& om, std::adopt_lock_t )
+	  : std::shared_lock<mutex_type>( *om.mutex(), std::adopt_lock )
+	  , p_om_( &om )
+	{
+	}
+
+	void swap( obj_shared_lock& other ) noexcept
+	{
+		std::shared_lock<mutex_type>::swap( other );
+		std::swap( p_om_, other.p_om_ );
+	}
+
+	const_value_type& ref( void ) const
+	{
+		if ( !this->owns_lock() ) {
+			throw std::runtime_error( "Cannot access ref() without owning the lock." );
+		}
+		if ( p_om_ == nullptr ) {
+			throw std::runtime_error( "Cannot access ref() without object." );
+		}
+		return p_om_->ref();
+	}
+
+	const_value_type& operator*( void ) const noexcept
+	{
+		return p_om_->ref();
+	}
+	const_value_type* operator->( void ) const noexcept
+	{
+		return &p_om_->ref();
+	}
+
+private:
+	const OM* p_om_;   //!< pointer to the object mutex being locked
+};
+
+#if __cpp_deduction_guides >= 201611L
+// Deduction guide for obj_lock_guard
+template <typename OM>
+obj_shared_lock( OM& ) -> obj_shared_lock<OM>;
+template <typename OM>
+obj_shared_lock( OM&, std::defer_lock_t ) -> obj_shared_lock<OM>;
+template <typename OM>
+obj_shared_lock( OM&, std::try_to_lock_t ) -> obj_shared_lock<OM>;
+template <typename OM>
+obj_shared_lock( OM&, std::adopt_lock_t ) -> obj_shared_lock<OM>;
+#endif
 
 #endif

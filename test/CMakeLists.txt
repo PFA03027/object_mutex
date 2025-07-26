@@ -1,50 +1,27 @@
-cmake_policy(SET CMP0048 NEW)
-project(ObjectMutexTest, VERSION 0.1.0)
 cmake_minimum_required(VERSION 3.16)
-
-find_package(Git QUIET)
-
-# Gitがインストールされており、トップディレクトリに.gitディレクトリがある
-if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/../.git")
-    enable_testing()
-    option(GOOGLETEST "Check Google Test during build" ON)
-    # -DGOOGLETEST=onオプションを付けて実行したらsubmoduleを最新版にする
-    if(GOOGLETEST)
-        message(STATUS "Submodule update")
-        execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
-                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
-        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
-            message(FATAL_ERROR "git submodule update --init failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
-        endif()
-    endif()
-endif()
-
-if(EXISTS "${PROJECT_SOURCE_DIR}/googletest/CMakeLists.txt")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
-
-    message("[BUILD] ${BUILD_TARGET}")
-    include(${BUILD_TARGET}.cmake)
-
-    add_subdirectory(googletest)
+cmake_policy(SET CMP0048 NEW)
+project(ObjectMutexTest, VERSION 2.0.0)
 
 
-    # file(GLOB SOURCES src/*.cpp )
-    set(SOURCES test.cpp)
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  DOWNLOAD_EXTRACT_TIMESTAMP ON
+  URL https://github.com/google/googletest/archive/refs/tags/v1.16.0.zip
+)
+#   URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
 
-    add_executable(test_object_mutex ${SOURCES})
-    target_include_directories(test_object_mutex PRIVATE ../inc)
-    target_link_libraries(test_object_mutex gtest gtest_main pthread)
+# For Windows: Prevent overriding the parent project's compiler/linker settings
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(googletest)
 
-    add_test(NAME test_object_mutex COMMAND $<TARGET_FILE:test_object_mutex>)
+# file(GLOB SOURCES src/*.cpp )
+set(SOURCES test.cpp)
 
-else()
-    message("The submodules were not downloaded! GOOGLETEST was turned off or failed. Skip the unit test executables build")
-    # git submodule add https://github.com/google/googletest.git googletest
-    # cd googletest
-    # git checkout release-1.12.1
-    # cd ..
-    # git add googletest
-    # git commit -m "Add submodule googletest for testing"
-endif()
+add_executable(test_object_mutex ${SOURCES})
+target_include_directories( test_object_mutex  PRIVATE ../inc )
+target_compile_options(test_object_mutex PUBLIC  -Wall -Wconversion -Wsign-conversion -Werror)
+target_link_libraries(test_object_mutex gtest gtest_main )
+# add_dependencies(build-test test_object_mutex)
+add_test(NAME test_object_mutex COMMAND $<TARGET_FILE:test_object_mutex>)
 
