@@ -49,11 +49,23 @@ obj_mutex<test_t> om( test_t(42) ); // Create an obj_mutex that exclusively cont
 int func1( void )
     obj_lock_guard lock( om ); // Create an obj_lock_guard that locks the instance of obj_mutex
     // Since lock locks the instance of obj_mutex, you can access the instance of test_t through om.ref()
-    
+
     return lock.ref().value; // Access the value of test_t in the exclusively controlled om
 }
 ```
 
+## Restrictions, etc.
+### Uses features from C++17 or later
+This code uses features from C++17 or later.
+Please build with a compiler for C++17 or later.
+
+* C++17 or later is required because std::scoped_lock is used to implement the assignment operator. It is possible to achieve the function with compilers for C++11 or later using std::lock().
+* Inference assistance introduced in C++17 is used to make it easier to declare when using lock classes. If you are using a compiler environment earlier than C++17, explicitly specify the type in the declaration of the lock class.
+* It is assumed that you can use std::shared_lock from C++14. If you are compatible with C++11, disable the code related to std::shared_mutex.
+
+### Adaptation to std::scoped_lock
+When performing multiple mutual exclusion controls simultaneously, `std::scoped_lock` is not yet adapted.
+After obtaining the lock status of all mutexes using std::lock(), use the adopt function of obj_unique_ptr and/or std::unique_lock to manage the unlock for each mutex.
 
 ## License
 No license notice is required to use this object_mutex.hpp.
@@ -117,9 +129,17 @@ int func1( void )
 ```
 
 ## 制約など
+### C++17以降の機能を使用
+このコードはC++17以降の機能を使用しています。
+C++17以降のコンパイラでビルドしてください。
+
+* 代入演算子の実装にstd::scoped_lockを使用しているため、C++17以降を必要としています。std::lock()を使用して、C++11以降のコンパイラでも機能実現することは可能です。
+* ロッククラスを利用する際の宣言が楽になるよう、C++17から導入された推論補助を利用しています。もしC++17以前のコンパイラ環境で利用する場合は、ロッククラスの宣言に型を明示的に指定してください。
+* C++14のstd::shared_lockを利用することができる前提となっています。C++11に対応する場合は、std::shared_mutex関連のコードを無効化してください。
+
 ### std::scoped_lockへの適応
 複数の排他制御を同時に行う場合、`std::scoped_lock`に対してはまだ適応していません。
-std::lock()を使ってすべてのmutexのロック状態を取得した後、std::unique_lockや、obj_unique_ptrのadopt機能の利用して、それぞれのmutexに対するunlockの管理をしてください。
+std::lock()を使ってすべてのmutexのロック状態を取得した後、std::unique_lockやobj_unique_ptrのadopt機能の利用して、それぞれのmutexに対するunlockの管理をしてください。
 
 ## ライセンスについて
 この object_mutex.hpp を使用するために、ライセンス通知は必要ありません。
