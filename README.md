@@ -13,7 +13,7 @@ This means that the class instance can only be accessed while the lock object is
 `obj_mutex<T, MTX_T>` is a wrapper class for exclusive control of instances of class T.
 The mutex used for exclusive control is specified with `MTX_T`.
 
-## Lock class
+## Lock classes
 The following lock class provides member functions ref(), operator*(), and operator->() to obtain a reference to the exclusively controlled object.
 These are the only ways to access an instance of object_mutex\<T, MTX_T\>.
 This provides safe access to the class instance, as it is only accessible during the lifetime of the lock object, which is the exclusive control period.
@@ -97,8 +97,8 @@ Please build with a compiler for C++17 or later.
 * Inference assistance introduced in C++17 is used to make it easier to declare when using lock classes. If you are using a compiler environment earlier than C++17, explicitly specify the type in the declaration of the lock class.
 * It is assumed that you can use std::shared_lock from C++14. If you are compatible with C++11, disable the code related to std::shared_mutex.
 
-### Adaptation to std::scoped_lock
-When performing multiple mutual exclusion controls simultaneously, `std::scoped_lock` is not yet adapted.
+### Adaptation to std::scoped_lock is not yet.
+When performing multiple mutual exclusion controls simultaneously, `std::scoped_lock` is usefull. But `obj_mutex<T, MTX_T>` is not yet adapted.
 After obtaining the lock status of all mutexes using std::lock(), use the adopt function of obj_unique_ptr and/or std::unique_lock to manage the unlock for each mutex.
 
 ## License
@@ -209,7 +209,8 @@ C++17以降のコンパイラでビルドしてください。
 * C++14のstd::shared_lockを利用することができる前提となっています。C++11に対応する場合は、std::shared_mutex関連のコードを無効化してください。
 
 ### std::scoped_lockへの適応
-複数の排他制御を同時に行う場合、`std::scoped_lock`に対してはまだ適応していません。
+複数の排他制御を同時に行う場合、`std::scoped_lock`が便利です。しかしながら、`obj_mutex<T, MTX_T>`はまだ、これに対応していません。
+代替方法は、std::lock()の利用です。
 std::lock()を使ってすべてのmutexのロック状態を取得した後、std::unique_lockやobj_unique_ptrのadopt機能の利用して、それぞれのmutexに対するunlockの管理をしてください。
 
 ## ライセンスについて
