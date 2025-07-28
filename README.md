@@ -213,6 +213,41 @@ C++17以降のコンパイラでビルドしてください。
 代替方法は、std::lock()の利用です。
 std::lock()を使ってすべてのmutexのロック状態を取得した後、std::unique_lockやobj_unique_ptrのadopt機能の利用して、それぞれのmutexに対するunlockの管理をしてください。
 
+### std::lock_guard、 std::unique_lock、std::shared_lockの拡張
+本質的には、`obj_lock_guard`、`obj_unique_lock`、`obj_shared_lock`は、std::lock_guard、std::unique_lock、std::shared_lockの拡張です。
+そのため、std::lock_guard等を特殊化することで、std::lock_guard等を`obj_mutex<T, MTX_T>`適応させることが可能です。
+例えば、標準ライブラリのlock_guardクラスのPrimaryテンプレートが、下記のような定義だったとして、
+```cpp
+namespace std {
+    template <typename Mutex>
+    class lock_guard {...};
+}
+```
+下記のように、obj_mutex用に特殊化したテンプレートクラスを定義できます。
+```cpp
+namespace std {
+    template <typename T, typename MTX_T>
+    class lock_guard<obj_mutex<T, MTX_T>> : public lock_guard<MTX_T> {
+    public:
+        lock_guard( obj_mutex<T, MTX_T>& om )
+        : lock_guard<MTX_T>( *om.mutex() )
+        , p_om_( &om )
+        {
+        }
+
+        T& ref( void ) noexcept
+        {
+            return p_om_->ref();
+        }
+
+    private:
+        obj_mutex<T, MTX_T>* p_om_;   //!< pointer to the object mutex being locked
+    };
+}
+```
+現在の実装は、ロッククラスを独立したクラスとして用意し、std名前空間での特殊化を行っていませんが、
+上記のように、標準ライブラリへの適用が容易な点もobj_mutexの特徴になります。
+
 ## ライセンスについて
 この object_mutex.hpp を使用するために、ライセンス通知は必要ありません。
 変更や再配布、変更後の再配布に対する制約事項はありません。
