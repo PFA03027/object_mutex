@@ -15,13 +15,15 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+add_custom_target(build-test)
+
 # file(GLOB SOURCES src/*.cpp )
 set(SOURCES test.cpp)
 
 add_executable(test_object_mutex ${SOURCES})
 target_include_directories( test_object_mutex  PRIVATE ../inc )
 target_compile_options(test_object_mutex PUBLIC  -Wall -Wconversion -Wsign-conversion -Werror)
-target_link_libraries(test_object_mutex gtest gtest_main )
-# add_dependencies(build-test test_object_mutex)
+target_link_libraries(test_object_mutex object_mutex gtest gtest_main )
+add_dependencies(build-test test_object_mutex)
 add_test(NAME test_object_mutex COMMAND $<TARGET_FILE:test_object_mutex>)
 

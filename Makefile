@@ -2,42 +2,49 @@
 
 # Debug or Release or ...
 # BUILDTYPE=Debug
-BUILDTYPE?=Release
-BUILDTARGET?=common
-BUILDDIR=build
+BUILD_TYPE?=Release
+BUILD_CONFIG?=common
+BUILD_DIR?=build
 
 JOBS=$(shell grep cpu.cores /proc/cpuinfo | sort -u | sed 's/[^0-9]//g')
 
-cmake_configure: ${BUILDDIR}
-	set -e; cd ${BUILDDIR}; cmake -DCMAKE_BUILD_TYPE=${BUILDTYPE} -D BUILD_TARGET=${BUILDTARGET} -G "Unix Makefiles" ../
+#############################################################################################
+all: configure-cmake
+	cmake --build ${BUILD_DIR} -j ${JOBS} -v --target all
 
-cmake_debug_configure: ${BUILDDIR}
-	set -e; cd ${BUILDDIR}; cmake -DCMAKE_BUILD_TYPE=Debug -D BUILD_TARGET=${BUILDTARGET} -G "Unix Makefiles" ../
+test: build-test
+	setarch $(uname -m) -R ctest --test-dir ${BUILD_DIR} -j ${JOBS} -v
 
-cmake_codecoverage_configure: ${BUILDDIR}
-	set -e; cd ${BUILDDIR}; cmake -DCMAKE_BUILD_TYPE=Debug -D BUILD_TARGET=codecoverage -G "Unix Makefiles" ../
+build-test: configure-cmake
+	cmake --build ${BUILD_DIR} -j ${JOBS} -v --target build-test
 
-all: cmake_configure
-	set -e; cd ${BUILDDIR}; cmake --build . -j ${JOBS} -v
+configure-cmake:
+	cmake -S . -B ${BUILD_DIR} -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DBUILD_CONFIG=${BUILD_CONFIG} 
 
-debug-all: cmake_debug_configure
-	set -e; cd ${BUILDDIR}; cmake --build . -j ${JOBS} -v
+clean:
+	-cmake --build ${BUILD_DIR} -j ${JOBS} -v --target clean
 
-test: debug-all
-	set -e; cd ${BUILDDIR}; ctest -j ${JOBS} -v
+clean-all:
+	-rm -fr ${BUILD_DIR}
+
+# This is inatall command example
+install: all
+	DESTDIR=/tmp/install-test cmake --install ${BUILD_DIR} --prefix /opt/xxx
+
 
 coverage: clean
 	set -e; \
-	make BUILDTARGET=codecoverage BUILDTYPE=Debug test;  \
-	cd ${BUILDDIR}; \
-	lcov -c -d . --include 'inc/*' --branch-coverage -o tmp.info; \
-	genhtml --branch-coverage -o OUTPUT -p . -f tmp.info
+	make BUILD_CONFIG=codecoverage BUILD_TYPE=Debug test;  \
+	cd ${BUILD_DIR}; \
+	lcov --rc branch_coverage=1 --rc geninfo_unexecuted_blocks=1 --ignore-errors negative --ignore-errors mismatch -c -d . --include '*/inc/object_mutex.hpp' -o output.info; \
+	genhtml --branch-coverage -o OUTPUT -p . -f output.info
 
-clean:
-	-rm -fr ${BUILDDIR}
+sanitizer:
+	set -e; \
+	for i in `seq 1 5`; do \
+		make sanitizer.$$i.sanitizer; \
+		echo $$i / 5 done; \
+	done
 
-echo:
-	echo JOBS = ${JOBS}
-
-${BUILDDIR}:
-	mkdir -p ${BUILDDIR}
+sanitizer.%.sanitizer: clean
+	make BUILD_CONFIG=common BUILD_TYPE=Debug SANITIZER_TYPE=$* test
