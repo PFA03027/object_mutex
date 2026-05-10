@@ -6,6 +6,9 @@ BUILD_TYPE?=Release
 BUILD_CONFIG?=common
 BUILD_DIR?=build
 
+INSTALL_BASEDIR?=/tmp/install-test
+INSTALL_PREFIX?=/opt/xxx
+
 JOBS=$(shell grep cpu.cores /proc/cpuinfo | sort -u | sed 's/[^0-9]//g')
 
 #############################################################################################
@@ -29,7 +32,7 @@ clean-all:
 
 # This is inatall command example
 install: all
-	DESTDIR=/tmp/install-test cmake --install ${BUILD_DIR} --prefix /opt/xxx
+	DESTDIR=${INSTALL_BASEDIR} cmake --install ${BUILD_DIR} --prefix ${INSTALL_PREFIX}
 
 
 coverage: clean
