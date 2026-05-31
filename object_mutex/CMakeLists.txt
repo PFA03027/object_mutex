@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-file(GLOB HEADER_FILES inc/*.hpp )
+set( HEADER_FILES inc/object_mutex.hpp )
 
 add_library(object_mutex INTERFACE)
 # target_sources(
