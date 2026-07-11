@@ -132,6 +132,14 @@ Example of using `std::scoped_lock`:
     }
 ```
 
+#### Note
+When performing multiple mutual exclusion controls simultaneously, if you can always guarantee a static lock order(*), it is better to choose static locking because it has the advantage of avoiding the resource starvation described below.
+If that is not possible, meaning you cannot guarantee the lock order, then `std::lock()` or `std::scoped_lock` come into play. However, these methods are built as busy loops using try & back off. Therefore, in situations where lock acquisition occurs frequently, there is a risk of resource starvation. Choose the implementation method while considering this point.
+
+(*) For example, if the structure hides the existence of the mutex including the mutex lock/unlock interface (such as being constructed as a private member variable of a class), and if the target mutex exists within a single process (more precisely, within a single address space), then you can at least define an order statically at runtime using the mutex address.
+Note that, as with std::mutex, object_mutex is designed to expose lock/unlock as a public interface, so it cannot guarantee by itself that an order can be defined statically.
+
+
 ## License
 No license notice is required to use this object_mutex.hpp.
 There are no restrictions on modifying, redistributing, or redistributing it after modification.
@@ -239,10 +247,48 @@ C++17以降のコンパイラでビルドしてください。
 * ロッククラスを利用する際の宣言が楽になるよう、C++17から導入された推論補助を利用しています。もしC++17以前のコンパイラ環境で利用する場合は、ロッククラスの宣言に型を明示的に指定してください。
 * C++14のstd::shared_lockを利用することができる前提となっています。C++11に対応する場合は、std::shared_mutex関連のコードを無効化してください。
 
-### std::scoped_lockへの適応
-複数の排他制御を同時に行う場合、`std::scoped_lock`が便利です。しかしながら、`obj_mutex<T, MTX_T>`はまだ、これに対応していません。
-代替方法は、std::lock()の利用です。
-std::lock()を使ってすべてのmutexのロック状態を取得した後、std::unique_lockやobj_unique_ptrのadopt機能の利用して、それぞれのmutexに対するunlockの管理をしてください。
+
+### 複数の排他制御
+複数の排他制御を同時に行う場合、2つの方法があります。
+* `obj_mutex<T, MTX_T>` に対して `std::lock()` を適用し、ロック済みの `obj_mutex<T, MTX_T>` に対して `std::adopt_lock` を使って `obj_unique_lock<OM>` を構築する
+* `obj_mutex<T, MTX_T>` に対して `std::defer_lock` で構築した `obj_unique_lock<OM>` に `std::scoped_lock` を適用する
+
+ `std::lock()`を使用する例:
+```cpp
+	obj_mutex<int>  om1( 42 );
+	obj_mutex<int>  om2( 43 );
+
+    std::lock( sut1, sut2 );    // lock om1 and om2 safty.
+    obj_unique_lock sut1( om1, std::adopt_lock );
+    obj_unique_lock sut2( om2, std::adopt_lock );
+
+    std::cout << "om1 is " << sut1.ref() << "   om2 is " << sut2.ref() << std::endl;
+```
+
+`std::scoped_lock`を利用する例:
+```cpp
+	obj_mutex<int>  om1( 42 );
+	obj_mutex<int>  om2( 43 );
+
+    {
+        obj_unique_lock sut1( om1, std::defer_lock );
+        obj_unique_lock sut2( om2, std::defer_lock );
+
+        {
+            std::scoped_lock lk( sut1, sut2 );
+            // sut1 ans sut2 are locked.
+            std::cout << "om1 is " << sut1.ref() << "   om2 is " << sut2.ref() << std::endl;
+        }
+        // sut1 ans sut2 are already unlocked, even if sut1 and sut2 is available.
+    }
+```
+
+#### 補足
+複数の排他制御を同時に行う場合、もし静的にロック順序を必ず保証できるならば(*)、静的にロックを行う方が後述するリソーススタベーションが発生しないという利点があるため、それを選択する方が良いでしょう。
+そうでない場合、つまりロック順を保証することが出来ない場合、`std::lock()`や`std::scoped_lock`の出番となります。ただ、これらの方法はtry&back offを用いたビジーループで構築されます。そのため、高頻度でロック取得が行われるような状況ではリソーススタベーションの発生リスクが生じます。この点を考慮して実装方式を選択してください。
+
+(*) たとえば、mutexのlock/unlockのI/Fを含めてmutexの存在を隠蔽するような構造の場合(クラスのprivateメンバ変数として構築される等)、対象mutexが１つのプロセス（より正確には１つのアドレス空間）内に存在するならば、mutexのアドレスを用いて少なくとも実行時には静的に順序を定義可能です。
+なお、std::mutexもそうですが、object_mutexはその設計上思想上、lock/unlockを公開I/Fとしているため、それ単独では静的に順序を定義することを保証できません。
 
 ### std::lock_guard、 std::unique_lock、std::shared_lockの拡張
 本質的には、`obj_lock_guard`、`obj_unique_lock`、`obj_shared_lock`は、std::lock_guard、std::unique_lock、std::shared_lockの拡張です。
