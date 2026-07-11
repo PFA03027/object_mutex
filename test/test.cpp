@@ -554,6 +554,27 @@ TEST( TestObjUniqueLock, CanLockWithStdScopedLock )
 	EXPECT_EQ( sut2.ref(), 43 );
 }
 
+TEST( TestObjUniqueLock, AlreadyLocked_CanLockWithStdAdoptLock )
+{
+	// Arrange
+	obj_mutex<int> om1( 42 );
+	obj_mutex<int> om2( 43 );
+
+	// Act
+	std::lock( om1, om2 );   // lock both mutexes
+
+	// Assert
+	EXPECT_FALSE( om1.try_lock() );   // should not be able to lock om1, because it is already locked by std::lock()
+	EXPECT_FALSE( om2.try_lock() );   // should not be able to lock om2, because it is already locked by std::lock()
+	obj_unique_lock sut1( om1, std::adopt_lock );
+	obj_unique_lock sut2( om2, std::adopt_lock );
+
+	EXPECT_TRUE( sut1.owns_lock() );
+	EXPECT_EQ( sut1.ref(), 42 );
+	EXPECT_TRUE( sut2.owns_lock() );
+	EXPECT_EQ( sut2.ref(), 43 );
+}
+
 // ========================================================
 
 TEST( TestObjSharedLock, CanConstruct )

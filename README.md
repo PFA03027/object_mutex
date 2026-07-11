@@ -97,9 +97,40 @@ Please build with a compiler for C++17 or later.
 * Inference assistance introduced in C++17 is used to make it easier to declare when using lock classes. If you are using a compiler environment earlier than C++17, explicitly specify the type in the declaration of the lock class.
 * It is assumed that you can use std::shared_lock from C++14. If you are compatible with C++11, disable the code related to std::shared_mutex.
 
-### Adaptation to std::scoped_lock is not yet.
-When performing multiple mutual exclusion controls simultaneously, `std::scoped_lock` is usefull. But `obj_mutex<T, MTX_T>` is not yet adapted.
-After obtaining the lock status of all mutexes using std::lock(), use the adopt function of obj_unique_ptr and/or std::unique_lock to manage the unlock for each mutex.
+### Multiple mutual exclusion control
+When performing multiple mutual exclusion controls simultaneously, there are 2 ways to perform.
+* Apply `std::lock()` to `obj_mutex<T, MTX_T>`, then construct `obj_unique_lock<OM>` with std::adopt_lock for the locked `obj_mutex<T, MTX_T>`
+* Apply `std::scoped_lock` to `obj_unique_lock<OM>` that are constructed with std::defer_lock for `obj_mutex<T, MTX_T>`
+
+Example of using `std::lock()`:
+```cpp
+	obj_mutex<int>  om1( 42 );
+	obj_mutex<int>  om2( 43 );
+
+    std::lock( sut1, sut2 );    // lock om1 and om2 safty.
+    obj_unique_lock sut1( om1, std::adopt_lock );
+    obj_unique_lock sut2( om2, std::adopt_lock );
+
+    std::cout << "om1 is " << sut1.ref() << "   om2 is " << sut2.ref() << std::endl;
+```
+
+Example of using `std::scoped_lock`:
+```cpp
+	obj_mutex<int>  om1( 42 );
+	obj_mutex<int>  om2( 43 );
+
+    {
+        obj_unique_lock sut1( om1, std::defer_lock );
+        obj_unique_lock sut2( om2, std::defer_lock );
+
+        {
+            std::scoped_lock lk( sut1, sut2 );
+            // sut1 ans sut2 are locked.
+            std::cout << "om1 is " << sut1.ref() << "   om2 is " << sut2.ref() << std::endl;
+        }
+        // sut1 ans sut2 are already unlocked, even if sut1 and sut2 is available.
+    }
+```
 
 ## License
 No license notice is required to use this object_mutex.hpp.
