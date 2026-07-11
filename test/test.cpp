@@ -264,7 +264,7 @@ TEST( TestObjectMutex, CanScopedLockPattern2 )
 	struct test_t {
 		int value;
 		test_t( int v )
-		  : value( v ) {}
+		  : value( v ) { }
 	};
 	obj_mutex<test_t> om( 42 );
 
@@ -396,7 +396,7 @@ TEST( TestObjUniqueLock, CanConstruct )
 	struct test_t {
 		int value;
 		test_t( int v )
-		  : value( v ) {}
+		  : value( v ) { }
 	};
 	obj_mutex<test_t> om( 42 );
 
@@ -536,13 +536,33 @@ TEST( TestObjUniqueLock, CanMoveAssign )
 
 // ========================================================
 
+TEST( TestObjUniqueLock, CanLockWithStdScopedLock )
+{
+	// Arrange
+	obj_mutex<int>  om1( 42 );
+	obj_unique_lock sut1( om1, std::defer_lock );
+	obj_mutex<int>  om2( 43 );
+	obj_unique_lock sut2( om2, std::defer_lock );
+
+	// Act
+	std::scoped_lock lk( sut1, sut2 );
+
+	// Assert
+	EXPECT_TRUE( sut1.owns_lock() );
+	EXPECT_EQ( sut1.ref(), 42 );
+	EXPECT_TRUE( sut2.owns_lock() );
+	EXPECT_EQ( sut2.ref(), 43 );
+}
+
+// ========================================================
+
 TEST( TestObjSharedLock, CanConstruct )
 {
 	// Arrange
 	struct test_t {
 		int value;
 		test_t( int v )
-		  : value( v ) {}
+		  : value( v ) { }
 	};
 	obj_mutex<test_t, std::shared_mutex> om( 42 );
 
