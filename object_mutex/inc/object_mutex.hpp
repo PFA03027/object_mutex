@@ -19,6 +19,9 @@
 #include <stdexcept>
 #include <type_traits>
 
+namespace object_mutex {
+namespace v1 {
+
 /**
  * @brief A wrapper class that exclusively controls access to class instances
  *
@@ -590,4 +593,12 @@ template <typename OM>
 obj_shared_lock( OM&, std::adopt_lock_t ) -> obj_shared_lock<OM>;
 #endif
 
-#endif
+}   // namespace v1
+}   // namespace object_mutex
+
+using object_mutex::v1::obj_lock_guard;
+using object_mutex::v1::obj_mutex;
+using object_mutex::v1::obj_shared_lock;
+using object_mutex::v1::obj_unique_lock;
+
+#endif   // OBJECT_MUTEX_HPP_
