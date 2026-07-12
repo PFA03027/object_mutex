@@ -266,7 +266,7 @@ void func2( void )
     std::cout << "om1 is " << lk1.ref() << "   om2 is " << lk2.ref() << std::endl;
 ```
 
-### `std::lock()`を用いたアプローチや`std::scoped_lock`を用いたアプローチの疑似コード
+#### `std::lock()`や`std::scoped_lock`を用いたアプローチを用いた場合の疑似コード
 `std::lock()`を使用する例:
 ```cpp
 	obj_mutex<int>  om1( 42 );
@@ -302,7 +302,7 @@ void func2( void )
 そうでない場合、つまりロック順を保証することが出来ない場合、`std::lock()`や`std::scoped_lock`の出番となります。ただ、これらの方法はtry&back offを用いたビジーループで構築されます。そのため、高頻度でロック取得が行われるような状況ではリソーススタベーションの発生リスクが生じます。この点を考慮して実装方式を選択してください。
 
 (*) たとえば、mutexのlock/unlockのI/Fを含めてmutexの存在を隠蔽するような構造の場合(クラスのprivateメンバ変数として構築される等)、対象mutexが１つのプロセス（より正確には１つのアドレス空間）内に存在するならば、mutexのアドレスを用いて少なくとも実行時には静的に順序を定義可能です。
-なお、std::mutexもそうですが、object_mutexはその設計上思想上、lock/unlockを公開I/Fとしているため、それ単独では静的に順序を定義することを保証できません。
+なお、std::mutexもそうですが、object_mutexはその設計思想上、lock/unlockを公開I/Fとしているため、それ単独では静的に順序を定義することを保証できません。
 
 
 ## 制約など
