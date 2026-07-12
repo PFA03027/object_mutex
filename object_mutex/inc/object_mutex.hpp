@@ -333,6 +333,13 @@ private:
 	friend class obj_shared_lock;
 };
 
+/**
+ * @brief A lock guard for obj_mutex
+ *
+ * This class provides a simple way to acquire and release a lock on an obj_mutex like std::lock_guard.
+ *
+ * @tparam OM obj_mutex type
+ */
 template <typename OM>
 class obj_lock_guard : public std::lock_guard<typename OM::mutex_type> {
 public:
@@ -389,6 +396,13 @@ template <typename OM>
 obj_lock_guard( OM& ) -> obj_lock_guard<OM>;
 #endif
 
+/**
+ * @brief A unique lock for obj_mutex
+ *
+ * This class provides a way to acquire and release a lock on an obj_mutex like std::unique_lock.
+ *
+ * @tparam OM obj_mutex type
+ */
 template <typename OM>
 class obj_unique_lock : public std::unique_lock<typename OM::mutex_type> {
 public:
@@ -501,6 +515,13 @@ template <typename OM>
 obj_unique_lock( OM&, std::adopt_lock_t ) -> obj_unique_lock<OM>;
 #endif
 
+/**
+ * @brief A shared lock for obj_mutex
+ *
+ * This class provides a way to acquire and release a shared lock on an obj_mutex like std::shared_lock, if the underlying mutex supports shared locking, for example, std::shared_mutex.
+ *
+ * @tparam OM obj_mutex type
+ */
 template <typename OM>
 class obj_shared_lock : public std::shared_lock<typename OM::mutex_type> {
 public:
@@ -604,6 +625,13 @@ struct select_locker {
 	using type                 = typename std::conditional<is_obj_mutex<ref_removed_mtxobj_t>::value, obj_unique_lock<ref_removed_mtxobj_t>, std::unique_lock<ref_removed_mtxobj_t>>::type;
 };
 
+/**
+ * @brief Stable multi-lock implementation for obj_mutex and std::mutex
+ *
+ * @tparam MTXOBJ_Args types of mutex or obj_mutex to be locked
+ *
+ * @note constraint: MTXOBJ_Args must be either obj_mutex or std::mutex (or compatible types like object has lock()/try_lock()/unlock() methods)
+ */
 template <typename... MTXOBJ_Args, typename std::enable_if<( sizeof...( MTXOBJ_Args ) > 0 )>::type* = nullptr>
 auto mult_lock_impl( MTXOBJ_Args&... mtxobj_args )
 {
