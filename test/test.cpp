@@ -836,3 +836,80 @@ TEST( TestObjMutex, CanHandleWithStdConditionVariable )
 	obj_lock_guard lock2( om );
 	EXPECT_EQ( lock2.ref(), 1 );   // Check if the value was changed by the thread waiting on the condition variable
 }
+
+// ========================================================
+
+static_assert( object_mutex::v1::is_obj_mutex<obj_mutex<int>>::value, "obj_mutex<int> should be an obj_mutex" );
+static_assert( !object_mutex::v1::is_obj_mutex<int>::value, "int should not be an obj_mutex" );
+static_assert( !object_mutex::v1::is_obj_mutex<std::mutex>::value, "std::mutex should not be an obj_mutex" );
+
+TEST( TestMultLock, CanCallWithStdMutexs )
+{
+	// Arrange
+	std::mutex mtx1;
+	std::mutex mtx2;
+
+	{
+		// Act
+		auto [lk1, lk2] = mult_lock( mtx1, mtx2 );
+
+		// Assert
+		std::unique_lock verify1( mtx1, std::try_to_lock );
+		std::unique_lock verify2( mtx2, std::try_to_lock );
+		EXPECT_FALSE( verify1.owns_lock() );
+		EXPECT_FALSE( verify2.owns_lock() );
+	}
+	std::unique_lock verify3( mtx1, std::try_to_lock );
+	std::unique_lock verify4( mtx2, std::try_to_lock );
+	EXPECT_TRUE( verify3.owns_lock() );
+	EXPECT_TRUE( verify4.owns_lock() );
+}
+
+TEST( TestMultLock, CanCallWithObjMutexs )
+{
+	// Arrange
+	obj_mutex<int> om1( 42 );
+	obj_mutex<int> om2( 87 );
+
+	{
+		// Act
+		auto [lk1, lk2] = mult_lock( om1, om2 );
+
+		// Assert
+		obj_unique_lock verify1( om1, std::try_to_lock );
+		obj_unique_lock verify2( om2, std::try_to_lock );
+		EXPECT_FALSE( verify1.owns_lock() );
+		EXPECT_FALSE( verify2.owns_lock() );
+
+		EXPECT_EQ( lk1.ref(), 42 );
+		EXPECT_EQ( lk2.ref(), 87 );
+	}
+	obj_unique_lock verify3( om1, std::try_to_lock );
+	obj_unique_lock verify4( om2, std::try_to_lock );
+	EXPECT_TRUE( verify3.owns_lock() );
+	EXPECT_TRUE( verify4.owns_lock() );
+}
+
+TEST( TestMultLock, CanCallWithObjMutexAndStdMutex )
+{
+	// Arrange
+	obj_mutex<int> om( 42 );
+	std::mutex     mtx;
+
+	{
+		// Act
+		auto [lk1, lk2] = mult_lock( om, mtx );
+
+		// Assert
+		obj_unique_lock  verify1( om, std::try_to_lock );
+		std::unique_lock verify2( mtx, std::try_to_lock );
+		EXPECT_FALSE( verify1.owns_lock() );
+		EXPECT_FALSE( verify2.owns_lock() );
+
+		EXPECT_EQ( lk1.ref(), 42 );
+	}
+	obj_unique_lock  verify3( om, std::try_to_lock );
+	std::unique_lock verify4( mtx, std::try_to_lock );
+	EXPECT_TRUE( verify3.owns_lock() );
+	EXPECT_TRUE( verify4.owns_lock() );
+}

@@ -593,6 +593,26 @@ template <typename OM>
 obj_shared_lock( OM&, std::adopt_lock_t ) -> obj_shared_lock<OM>;
 #endif
 
+template <typename T>
+struct is_obj_mutex : public std::false_type { };
+template <typename T, typename MTX_T>
+struct is_obj_mutex<obj_mutex<T, MTX_T>> : public std::true_type { };
+
+template <typename MTX_T>
+struct select_locker {
+	using ref_removed_mtxobj_t = typename std::remove_reference<MTX_T>::type;
+	using type                 = typename std::conditional<is_obj_mutex<ref_removed_mtxobj_t>::value, obj_unique_lock<ref_removed_mtxobj_t>, std::unique_lock<ref_removed_mtxobj_t>>::type;
+};
+
+template <typename... MTXOBJ_Args, typename std::enable_if<( sizeof...( MTXOBJ_Args ) > 0 )>::type* = nullptr>
+auto mult_lock_impl( MTXOBJ_Args&... mtxobj_args )
+{
+	std::lock( mtxobj_args... );
+
+	using ans_tuple_t = std::tuple<typename select_locker<MTXOBJ_Args>::type...>;
+	return ans_tuple_t( typename select_locker<MTXOBJ_Args>::type { mtxobj_args, std::adopt_lock }... );
+}
+
 }   // namespace v1
 }   // namespace object_mutex
 
@@ -600,5 +620,11 @@ using object_mutex::v1::obj_lock_guard;
 using object_mutex::v1::obj_mutex;
 using object_mutex::v1::obj_shared_lock;
 using object_mutex::v1::obj_unique_lock;
+
+template <typename... MTXOBJ_Args, typename std::enable_if<( sizeof...( MTXOBJ_Args ) > 0 )>::type* = nullptr>
+inline auto mult_lock( MTXOBJ_Args&... mtxobj_args )
+{
+	return object_mutex::v1::mult_lock_impl( mtxobj_args... );
+}
 
 #endif   // OBJECT_MUTEX_HPP_
