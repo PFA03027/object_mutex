@@ -622,7 +622,7 @@ using object_mutex::v1::obj_shared_lock;
 using object_mutex::v1::obj_unique_lock;
 
 template <typename... MTXOBJ_Args, typename std::enable_if<( sizeof...( MTXOBJ_Args ) > 0 )>::type* = nullptr>
-inline auto mult_lock( MTXOBJ_Args&... mtxobj_args )
+[[nodiscard]] inline auto mult_lock( MTXOBJ_Args&... mtxobj_args )
 {
 	return object_mutex::v1::mult_lock_impl( mtxobj_args... );
 }

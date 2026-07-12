@@ -87,21 +87,22 @@ void func2( void )
 }
 ```
 
-
-## Restrictions, etc.
-### Uses features from C++17 or later
-This code uses features from C++17 or later.
-Please build with a compiler for C++17 or later.
-
-* C++17 or later is required because std::scoped_lock is used to implement the assignment operator. It is possible to achieve the function with compilers for C++11 or later using std::lock().
-* Inference assistance introduced in C++17 is used to make it easier to declare when using lock classes. If you are using a compiler environment earlier than C++17, explicitly specify the type in the declaration of the lock class.
-* It is assumed that you can use std::shared_lock from C++14. If you are compatible with C++11, disable the code related to std::shared_mutex.
-
-### Multiple mutual exclusion control
+## Multiple mutual exclusion control
 When performing multiple mutual exclusion controls simultaneously, there are 2 ways to perform.
 * Apply `std::lock()` to `obj_mutex<T, MTX_T>`, then construct `obj_unique_lock<OM>` with std::adopt_lock for the locked `obj_mutex<T, MTX_T>`
 * Apply `std::scoped_lock` to `obj_unique_lock<OM>` that are constructed with std::defer_lock for `obj_mutex<T, MTX_T>`
 
+`mult_lock()` provides lock objects for multiple `object_mutex` or `std::mutex` instances in a natural way. It is implemented internally using `std::lock()`, and it returns a group of lock objects as a `std::tuple`. This enables `mult_lock()` to achieve stable locking while also providing lock objects such as `obj_unique_lock` and `std::unique_lock` in a natural form. In addition, because the lock objects are returned as a `std::tuple`, they can also be received via structured bindings.
+```cpp
+	obj_mutex<int>  om1( 42 );
+	obj_mutex<int>  om2( 43 );
+
+    auto [lk1, lk2] = std::lock( sut1, sut2 );    // lock om1 and om2 safty.
+
+    std::cout << "om1 is " << lk1.ref() << "   om2 is " << lk2.ref() << std::endl;
+```
+
+### Pseudo code of `std::lock()` approach and `std::scoped_lock` approach
 Example of using `std::lock()`:
 ```cpp
 	obj_mutex<int>  om1( 42 );
@@ -138,6 +139,16 @@ If that is not possible, meaning you cannot guarantee the lock order, then `std:
 
 (*) For example, if the structure hides the existence of the mutex including the mutex lock/unlock interface (such as being constructed as a private member variable of a class), and if the target mutex exists within a single process (more precisely, within a single address space), then you can at least define an order statically at runtime using the mutex address.
 Note that, as with std::mutex, object_mutex is designed to expose lock/unlock as a public interface, so it cannot guarantee by itself that an order can be defined statically.
+
+
+## Restrictions, etc.
+### Uses features from C++17 or later
+This code uses features from C++17 or later.
+Please build with a compiler for C++17 or later.
+
+* C++17 or later is required because std::scoped_lock is used to implement the assignment operator. It is possible to achieve the function with compilers for C++11 or later using std::lock().
+* Inference assistance introduced in C++17 is used to make it easier to declare when using lock classes. If you are using a compiler environment earlier than C++17, explicitly specify the type in the declaration of the lock class.
+* It is assumed that you can use std::shared_lock from C++14. If you are compatible with C++11, disable the code related to std::shared_mutex.
 
 
 ## License
@@ -238,22 +249,25 @@ void func2( void )
 }
 ```
 
-## 制約など
-### C++17以降の機能を使用
-このコードはC++17以降の機能を使用しています。
-C++17以降のコンパイラでビルドしてください。
-
-* 代入演算子の実装にstd::scoped_lockを使用しているため、C++17以降を必要としています。std::lock()を使用して、C++11以降のコンパイラでも機能実現することは可能です。
-* ロッククラスを利用する際の宣言が楽になるよう、C++17から導入された推論補助を利用しています。もしC++17以前のコンパイラ環境で利用する場合は、ロッククラスの宣言に型を明示的に指定してください。
-* C++14のstd::shared_lockを利用することができる前提となっています。C++11に対応する場合は、std::shared_mutex関連のコードを無効化してください。
-
-
 ### 複数の排他制御
-複数の排他制御を同時に行う場合、2つの方法があります。
+複数の排他制御を同時に行う場合、2つの方法がありますが、そのまま利用すると若干煩雑です。
 * `obj_mutex<T, MTX_T>` に対して `std::lock()` を適用し、ロック済みの `obj_mutex<T, MTX_T>` に対して `std::adopt_lock` を使って `obj_unique_lock<OM>` を構築する
 * `obj_mutex<T, MTX_T>` に対して `std::defer_lock` で構築した `obj_unique_lock<OM>` に `std::scoped_lock` を適用する
 
- `std::lock()`を使用する例:
+`mult_lock()`は、複数のobject_mutexやstd::mutexに対するロックオブジェクトを自然な形で提供します。内部的に`std::lock()`を用いた実装しており、ロックオブジェクト群を`std::tuple`として返します。
+これにより、`mult_lock()`は安定したロックを実現し、また`obj_unique_lock`や`std::unique_lock`といったロックオブジェクトを自然な形で提供します。
+また、ロックオブジェクト群をstd::tupleで返すため、構造化束縛が受け取ることも可能です。
+```cpp
+	obj_mutex<int>  om1( 42 );
+	obj_mutex<int>  om2( 43 );
+
+    auto [lk1, lk2] = std::lock( sut1, sut2 );    // lock om1 and om2 safty.
+
+    std::cout << "om1 is " << lk1.ref() << "   om2 is " << lk2.ref() << std::endl;
+```
+
+### `std::lock()`を用いたアプローチや`std::scoped_lock`を用いたアプローチの疑似コード
+`std::lock()`を使用する例:
 ```cpp
 	obj_mutex<int>  om1( 42 );
 	obj_mutex<int>  om2( 43 );
@@ -289,6 +303,16 @@ C++17以降のコンパイラでビルドしてください。
 
 (*) たとえば、mutexのlock/unlockのI/Fを含めてmutexの存在を隠蔽するような構造の場合(クラスのprivateメンバ変数として構築される等)、対象mutexが１つのプロセス（より正確には１つのアドレス空間）内に存在するならば、mutexのアドレスを用いて少なくとも実行時には静的に順序を定義可能です。
 なお、std::mutexもそうですが、object_mutexはその設計上思想上、lock/unlockを公開I/Fとしているため、それ単独では静的に順序を定義することを保証できません。
+
+
+## 制約など
+### C++17以降の機能を使用
+このコードはC++17以降の機能を使用しています。
+C++17以降のコンパイラでビルドしてください。
+
+* 代入演算子の実装にstd::scoped_lockを使用しているため、C++17以降を必要としています。std::lock()を使用して、C++11以降のコンパイラでも機能実現することは可能です。
+* ロッククラスを利用する際の宣言が楽になるよう、C++17から導入された推論補助を利用しています。もしC++17以前のコンパイラ環境で利用する場合は、ロッククラスの宣言に型を明示的に指定してください。
+* C++14のstd::shared_lockを利用することができる前提となっています。C++11に対応する場合は、std::shared_mutex関連のコードを無効化してください。
 
 ### std::lock_guard、 std::unique_lock、std::shared_lockの拡張
 本質的には、`obj_lock_guard`、`obj_unique_lock`、`obj_shared_lock`は、std::lock_guard、std::unique_lock、std::shared_lockの拡張です。
