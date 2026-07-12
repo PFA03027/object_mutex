@@ -347,7 +347,7 @@ public:
 	obj_lock_guard( obj_lock_guard&& )                 = delete;
 	obj_lock_guard& operator=( obj_lock_guard&& )      = delete;
 
-	obj_lock_guard( OM& om )
+	explicit obj_lock_guard( OM& om )
 	  : std::lock_guard<mutex_type>( *om.mutex() )
 	  , p_om_( &om )
 	{
@@ -397,7 +397,7 @@ public:
 	using const_value_type = typename std::add_const<typename OM::value_type>::type;
 
 	~obj_unique_lock( void ) = default;
-	obj_unique_lock( void )
+	obj_unique_lock( void ) noexcept
 	  : std::unique_lock<mutex_type>()
 	  , p_om_( nullptr )
 	{
@@ -425,12 +425,12 @@ public:
 		std::swap( p_om_, other.p_om_ );
 	}
 
-	obj_unique_lock( OM& om )
+	explicit obj_unique_lock( OM& om )
 	  : std::unique_lock<mutex_type>( *om.mutex() )
 	  , p_om_( &om )
 	{
 	}
-	obj_unique_lock( OM& om, std::defer_lock_t )
+	obj_unique_lock( OM& om, std::defer_lock_t ) noexcept
 	  : std::unique_lock<mutex_type>( *om.mutex(), std::defer_lock )
 	  , p_om_( &om )
 	{
@@ -508,7 +508,7 @@ public:
 	using const_value_type = typename std::add_const<typename OM::value_type>::type;
 
 	~obj_shared_lock( void ) = default;
-	obj_shared_lock( void )
+	obj_shared_lock( void ) noexcept
 	  : std::shared_lock<mutex_type>()
 	  , p_om_( nullptr )
 	{
@@ -530,12 +530,12 @@ public:
 		return *this;
 	}
 
-	obj_shared_lock( OM& om )
+	explicit obj_shared_lock( OM& om )
 	  : std::shared_lock<mutex_type>( *om.mutex() )
 	  , p_om_( &om )
 	{
 	}
-	obj_shared_lock( OM& om, std::defer_lock_t )
+	obj_shared_lock( OM& om, std::defer_lock_t ) noexcept
 	  : std::shared_lock<mutex_type>( *om.mutex(), std::defer_lock )
 	  , p_om_( &om )
 	{
