@@ -854,6 +854,8 @@ TEST( TestMultLock, CanCallWithStdMutexs )
 		auto [lk1, lk2] = mult_lock( mtx1, mtx2 );
 
 		// Assert
+		static_assert( std::is_same_v<decltype( lk1 ), std::unique_lock<std::mutex>> );
+		static_assert( std::is_same_v<decltype( lk2 ), std::unique_lock<std::mutex>> );
 		std::unique_lock verify1( mtx1, std::try_to_lock );
 		std::unique_lock verify2( mtx2, std::try_to_lock );
 		EXPECT_FALSE( verify1.owns_lock() );
@@ -876,6 +878,8 @@ TEST( TestMultLock, CanCallWithObjMutexs )
 		auto [lk1, lk2] = mult_lock( om1, om2 );
 
 		// Assert
+		static_assert( std::is_same<decltype( lk1 ), obj_unique_lock<obj_mutex<int>>>::value, "lk1 should be obj_unique_lock<obj_mutex<int>, std::mutex>" );
+		static_assert( std::is_same<decltype( lk2 ), obj_unique_lock<obj_mutex<int>>>::value, "lk2 should be obj_unique_lock<obj_mutex<int>, std::mutex>" );
 		obj_unique_lock verify1( om1, std::try_to_lock );
 		obj_unique_lock verify2( om2, std::try_to_lock );
 		EXPECT_FALSE( verify1.owns_lock() );
@@ -901,6 +905,8 @@ TEST( TestMultLock, CanCallWithObjMutexAndStdMutex )
 		auto [lk1, lk2] = mult_lock( om, mtx );
 
 		// Assert
+		static_assert( std::is_same<decltype( lk1 ), obj_unique_lock<obj_mutex<int>>>::value, "lk1 should be obj_unique_lock<obj_mutex<int>, std::mutex>" );
+		static_assert( std::is_same<decltype( lk2 ), std::unique_lock<std::mutex>>::value, "lk2 should be std::unique_lock<std::mutex>" );
 		obj_unique_lock  verify1( om, std::try_to_lock );
 		std::unique_lock verify2( mtx, std::try_to_lock );
 		EXPECT_FALSE( verify1.owns_lock() );
