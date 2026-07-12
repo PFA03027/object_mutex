@@ -637,8 +637,16 @@ auto mult_lock_impl( MTXOBJ_Args&... mtxobj_args )
 {
 	std::lock( mtxobj_args... );
 
-	using ans_tuple_t = std::tuple<typename select_locker<MTXOBJ_Args>::type...>;
-	return ans_tuple_t( typename select_locker<MTXOBJ_Args>::type { mtxobj_args, std::adopt_lock }... );
+	try {
+		using ans_tuple_t = std::tuple<typename select_locker<MTXOBJ_Args>::type...>;
+		return ans_tuple_t( typename select_locker<MTXOBJ_Args>::type { mtxobj_args, std::adopt_lock }... );
+	} catch ( ... ) {
+		// if std::lock() throws no exceptiion, all of mtxobj_args were unlocked, then std::lock() succeeded.
+		// so, if any of the lock guard constructors throw an exception, unlock all mutexes as recovery input status.
+		// If any of the lock guard constructors throw an exception, unlock all mutexes
+		( mtxobj_args.unlock(), ... );
+		throw;   // rethrow the exception
+	}
 }
 
 }   // namespace v1
