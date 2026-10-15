@@ -851,7 +851,7 @@ TEST( TestMultLock, CanCallWithStdMutexs )
 
 	{
 		// Act
-		auto [lk1, lk2] = mult_lock( mtx1, mtx2 );
+		auto [lk1, lk2] = make_locks( mtx1, mtx2 );
 
 		// Assert
 		static_assert( std::is_same_v<decltype( lk1 ), std::unique_lock<std::mutex>> );
@@ -875,7 +875,7 @@ TEST( TestMultLock, CanCallWithObjMutexs )
 
 	{
 		// Act
-		auto [lk1, lk2] = mult_lock( om1, om2 );
+		auto [lk1, lk2] = make_locks( om1, om2 );
 
 		// Assert
 		static_assert( std::is_same<decltype( lk1 ), obj_unique_lock<obj_mutex<int>>>::value, "lk1 should be obj_unique_lock<obj_mutex<int>, std::mutex>" );
@@ -902,7 +902,7 @@ TEST( TestMultLock, CanCallWithObjMutexAndStdMutex )
 
 	{
 		// Act
-		auto [lk1, lk2] = mult_lock( om, mtx );
+		auto [lk1, lk2] = make_locks( om, mtx );
 
 		// Assert
 		static_assert( std::is_same<decltype( lk1 ), obj_unique_lock<obj_mutex<int>>>::value, "lk1 should be obj_unique_lock<obj_mutex<int>, std::mutex>" );

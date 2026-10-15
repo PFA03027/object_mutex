@@ -92,12 +92,12 @@ When performing multiple mutual exclusion controls simultaneously, there are 2 w
 * Apply `std::lock()` to `obj_mutex<T, MTX_T>`, then construct `obj_unique_lock<OM>` with std::adopt_lock for the locked `obj_mutex<T, MTX_T>`
 * Apply `std::scoped_lock` to `obj_unique_lock<OM>` that are constructed with std::defer_lock for `obj_mutex<T, MTX_T>`
 
-`mult_lock()` provides lock objects for multiple `object_mutex` or `std::mutex` instances in a natural way. It is implemented internally using `std::lock()`, and it returns a group of lock objects as a `std::tuple`. This enables `mult_lock()` to achieve stable locking while also providing lock objects such as `obj_unique_lock` and `std::unique_lock` in a natural form. In addition, because the lock objects are returned as a `std::tuple`, they can also be received via structured bindings.
+`make_locks()` provides lock objects for multiple `object_mutex` or `std::mutex` instances in a natural way. It is implemented internally using `std::lock()`, and it returns a group of lock objects as a `std::tuple`. This enables `make_locks()` to achieve stable locking while also providing lock objects such as `obj_unique_lock` and `std::unique_lock` in a natural form. In addition, because the lock objects are returned as a `std::tuple`, they can also be received via structured bindings.
 ```cpp
 	obj_mutex<int>  om1( 42 );
 	obj_mutex<int>  om2( 43 );
 
-    auto [lk1, lk2] = std::lock( sut1, sut2 );    // lock om1 and om2 safty.
+    auto [lk1, lk2] = make_locks( sut1, sut2 );    // lock om1 and om2 safty.
 
     std::cout << "om1 is " << lk1.ref() << "   om2 is " << lk2.ref() << std::endl;
 ```
@@ -254,14 +254,14 @@ void func2( void )
 * `obj_mutex<T, MTX_T>` に対して `std::lock()` を適用し、ロック済みの `obj_mutex<T, MTX_T>` に対して `std::adopt_lock` を使って `obj_unique_lock<OM>` を構築する
 * `obj_mutex<T, MTX_T>` に対して `std::defer_lock` で構築した `obj_unique_lock<OM>` に `std::scoped_lock` を適用する
 
-`mult_lock()`は、複数のobject_mutexやstd::mutexに対するロックオブジェクトを自然な形で提供します。内部的に`std::lock()`を用いた実装しており、ロックオブジェクト群を`std::tuple`として返します。
-これにより、`mult_lock()`は安定したロックを実現し、また`obj_unique_lock`や`std::unique_lock`といったロックオブジェクトを自然な形で提供します。
+`make_locks()`は、複数のobject_mutexやstd::mutexに対するロックオブジェクトを自然な形で提供します。内部的に`std::lock()`を用いた実装しており、ロックオブジェクト群を`std::tuple`として返します。
+これにより、`make_locks()`は安定したロックを実現し、また`obj_unique_lock`や`std::unique_lock`といったロックオブジェクトを自然な形で提供します。
 また、ロックオブジェクト群をstd::tupleで返すため、構造化束縛が受け取ることも可能です。
 ```cpp
 	obj_mutex<int>  om1( 42 );
 	obj_mutex<int>  om2( 43 );
 
-    auto [lk1, lk2] = std::lock( sut1, sut2 );    // lock om1 and om2 safty.
+    auto [lk1, lk2] = make_locks( sut1, sut2 );    // lock om1 and om2 safty.
 
     std::cout << "om1 is " << lk1.ref() << "   om2 is " << lk2.ref() << std::endl;
 ```
@@ -301,7 +301,7 @@ void func2( void )
 複数の排他制御を同時に行う場合、もし静的にロック順序を必ず保証できるならば(*)、静的にロックを行う方が後述するリソーススタベーションが発生しないという利点があるため、それを選択する方が良いでしょう。
 そうでない場合、つまりロック順を保証することが出来ない場合、`std::lock()`や`std::scoped_lock`の出番となります。ただ、これらの方法はtry&back offを用いたビジーループで構築されます。そのため、高頻度でロック取得が行われるような状況ではリソーススタベーションの発生リスクが生じます。この点を考慮して実装方式を選択してください。
 
-(*) たとえば、mutexのlock/unlockのI/Fを含めてmutexの存在を隠蔽するような構造の場合(クラスのprivateメンバ変数として構築される等)、対象mutexが１つのプロセス（より正確には１つのアドレス空間）内に存在するならば、mutexのアドレスを用いて少なくとも実行時には静的に順序を定義可能です。
+(*) たとえば、mutexのlock/unlockのI/Fを含めてmutexの存在を隠蔽するような構造の場合(クラスのprivateメンバ変数として構築される等)、対象mutexが１つのプロセス内（より正確には１つのアドレス空間内）に存在するならば、mutexのアドレスを用いて少なくとも実行時には静的に順序を定義可能です。
 なお、std::mutexもそうですが、object_mutexはその設計思想上、lock/unlockを公開I/Fとしているため、それ単独では静的に順序を定義することを保証できません。
 
 
