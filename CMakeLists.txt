@@ -5,7 +5,7 @@ project(
     #
     DESCRIPTION "A wrapper class that exclusively controls access to class instances"
     LANGUAGES CXX
-    VERSION 2.1.0
+    VERSION 2.2.0
 )
 
 enable_testing()
